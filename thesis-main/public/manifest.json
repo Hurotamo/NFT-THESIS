@@ -1,0 +1,27 @@
+{
+  "name": "THESIS-NFT",
+  "short_name": "ThesisNFT",
+  "description": "Support Innovation. Mint the Future. - Invest in groundbreaking student research by minting thesis projects as NFTs.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e1b4b",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "education", "productivity"],
+  "lang": "en-US",
+  "dir": "ltr"
+}
