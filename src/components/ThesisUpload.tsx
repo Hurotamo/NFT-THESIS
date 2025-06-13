@@ -26,7 +26,7 @@ export interface ThesisData {
   walletAddress: string;
 }
 
-const ipfs = create({ url: 'https://ipfs.infura.io:5001/api/v0' });
+const ipfs = create({ url: 'http://127.0.0.1:5001/api/v0' });
 
 const ThesisUpload: React.FC<ThesisUploadProps> = ({ walletAddress, onUploadSuccess }) => {
   const [file, setFile] = useState<File | null>(null);
