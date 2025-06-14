@@ -106,3 +106,12 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Support
 
 For support and questions, please open an issue in the repository or contact the development team.
+
+
+Network Name: Core Blockchain TestNet
+New RPC URL: https://rpc.test2.btcs.network
+Chain ID: 1114
+Currency Symbol: tCORE2
+Block Explorer URL: https://scan.test2.btcs.network
+Faucet: https://scan.test2.btcs.network/faucet
+Staking Website: https://stake.test2.btcs.network/
