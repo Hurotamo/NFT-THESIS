@@ -25,6 +25,8 @@ interface IThesisNFT is IERC721 {
     function ownerOf(uint256 tokenId) external view returns (address);
     /// @dev Safely transfers a token from one address to another.
     function safeTransferFrom(address from, address to, uint256 tokenId) external;
+    /// @dev Checks if a user has minted an NFT.
+    function hasMinted(address user) external view returns (bool);
 }
 
 contract ThesisAuction is Ownable, ReentrancyGuard, Pausable {
@@ -221,32 +223,28 @@ contract ThesisAuction is Ownable, ReentrancyGuard, Pausable {
     /// @dev Places a bid on an active auction.
     /// @param tokenId The NFT token ID being bid on.
     function placeBid(uint256 tokenId) external payable nonReentrant whenNotPaused auctionExists(tokenId) {
+        // Restrict to minters only
+        require(thesisNFT.hasMinted(msg.sender), "Only minters can bid");
         AuctionInfo storage auction = auctionInfo[tokenId];
         require(auction.active, "Auction not active");
         require(block.timestamp < auction.endTime, "Auction ended");
         require(msg.value > 0, "Zero bid");
-
         uint256 minBid = auction.highestBid == 0 ? auctionPrice : auction.highestBid + bidIncrement;
         require(msg.value >= minBid, "Bid too low");
         require(msg.value <= maxBidAmount, "Bid too high");
-
         if (auction.highestBidder != address(0)) {
             withdrawable[auction.highestBidder] += auction.highestBid;
             emit RefundIssued(auction.highestBidder, auction.highestBid);
         }
-
         auction.highestBid = msg.value;
         auction.highestBidder = msg.sender;
         auction.lastModified = block.timestamp;
-
         if (auction.endTime - block.timestamp < extensionWindow && auction.extensions < MAX_EXTENSIONS) {
             auction.endTime = block.timestamp + extensionTime;
             auction.extensions++;
         }
-
         userBidTotals[tokenId][msg.sender] += msg.value;
         _bidHistory[tokenId].push(Bid({ bidder: msg.sender, amount: msg.value, timestamp: uint64(block.timestamp) }));
-
         emit BidPlaced(tokenId, msg.sender, msg.value);
     }
 

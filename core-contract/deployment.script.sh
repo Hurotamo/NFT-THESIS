@@ -26,11 +26,9 @@ core_testnet
 
 test script 
 
-npx jest Contract/tests/Staking.test.ts
+npx jest /test/Staking.test.ts
 
-npx jest Contract/tests/Thesis-Auction.test.ts
+npx jest /test/Thesis-Auction.test.ts
 
-npx jest Contract/tests/Thesis-NFT.test.ts
+npx jest /test/Thesis-NFT.test.ts
 
-cd Contract
-npx jest test/Staking.test.ts
