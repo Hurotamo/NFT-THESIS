@@ -1,5 +1,6 @@
 import path from 'path'
-require('dotenv').config({ path: path.resolve(__dirname, '.env') });
+import dotenv from 'dotenv';
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 
@@ -8,7 +9,7 @@ const { PRIVATE_KEY } = process.env;
 const config: HardhatUserConfig = {
   solidity: "0.8.28",
   paths: {
-    tests: "./tests"
+    tests: "./test"
   },
   networks: {
     core_testnet: {

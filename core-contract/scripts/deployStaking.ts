@@ -1,12 +1,14 @@
 import { ethers } from "hardhat";
 
 async function main() {
-  // TODO: Replace with your actual CoreToken address and owner address
-  const coreTokenAddress = "0xB490Ea033524c85c2740e6dDF6A30c75bbff1A8F";
-  const ownerAddress = "0xB490Ea033524c85c2740e6dDF6A30c75bbff1A8F";
+  const [deployer] = await ethers.getSigners();
+
+  console.log("Deploying Staking contract with the account:", deployer.address);
 
   const Staking = await ethers.getContractFactory("Staking");
-  const staking = await Staking.deploy(coreTokenAddress, ownerAddress);
+  // Deploying with address(0) for native token staking
+  const staking = await Staking.deploy(ethers.ZeroAddress, deployer.address);
+
   await staking.waitForDeployment();
 
   console.log("Staking contract deployed to:", await staking.getAddress());
@@ -15,4 +17,4 @@ async function main() {
 main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
-});
+}); 

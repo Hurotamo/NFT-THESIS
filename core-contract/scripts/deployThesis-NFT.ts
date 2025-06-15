@@ -1,15 +1,22 @@
 import { ethers } from "hardhat";
 
 async function main() {
-  // TODO: Replace with your actual values
-  const name = "ThesisNFT";
+  const [deployer] = await ethers.getSigners();
+
+  console.log("Deploying ThesisNFT contract with the account:", deployer.address);
+
+  const stakingContractAddress = process.env.STAKING_CONTRACT_ADDRESS;
+  if (!stakingContractAddress) {
+    console.error("Please provide the STAKING_CONTRACT_ADDRESS as an environment variable.");
+    process.exit(1);
+  }
+
+  const name = "Thesis NFT";
   const symbol = "TNFT";
-  const maxSupply = 200;
-  const minSupply = 100;
+  const maxSupply = 100;
+  const minSupply = 40;
   const price = ethers.parseEther("0.1");
-  const ownerAddress = "0xB490Ea033524c85c2740e6dDF6A30c75bbff1A8F";
-  const stakingContractAddress = "0xYourStakingContractAddress";
-  const baseTokenURI = "ipfs://Qm.../";
+  const baseTokenURI = "ipfs://your_metadata_hash/"; // Replace with your actual metadata hash
 
   const ThesisNFT = await ethers.getContractFactory("ThesisNFT");
   const thesisNFT = await ThesisNFT.deploy(
@@ -18,16 +25,17 @@ async function main() {
     maxSupply,
     minSupply,
     price,
-    ownerAddress,
+    deployer.address,
     stakingContractAddress,
     baseTokenURI
   );
+
   await thesisNFT.waitForDeployment();
 
-  console.log("ThesisNFT contract deployed to:", await thesisNFT.getAddress());
+  console.log("ThesisNFT deployed to:", await thesisNFT.getAddress());
 }
 
 main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
-});
+}); 

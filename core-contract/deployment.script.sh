@@ -33,4 +33,4 @@ npx jest Contract/tests/Thesis-Auction.test.ts
 npx jest Contract/tests/Thesis-NFT.test.ts
 
 cd Contract
-npx jest tests/Staking.test.ts
+npx jest test/Staking.test.ts

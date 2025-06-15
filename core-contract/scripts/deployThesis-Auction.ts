@@ -1,23 +1,34 @@
 import { ethers } from "hardhat";
 
 async function main() {
-  // TODO: Replace with your actual values
-  const thesisNFTAddress = "0xYourThesisNFTAddress";
-  const auctionPrice = ethers.parseEther("1");
-  const ownerAddress = "0xB490Ea033524c85c2740e6dDF6A30c75bbff1A8F";
+  const [deployer] = await ethers.getSigners();
+
+  console.log("Deploying ThesisAuction contract with the account:", deployer.address);
+
+  const thesisNFTAddress = process.env.THESIS_NFT_ADDRESS;
+  if (!thesisNFTAddress) {
+    console.error("Please provide the THESIS_NFT_ADDRESS as an environment variable.");
+    process.exit(1);
+  }
+
+  const initialPrice = ethers.parseEther("0.1");
+  const nftOwner = deployer.address;
+  const platformWallet = deployer.address;
 
   const ThesisAuction = await ethers.getContractFactory("ThesisAuction");
   const thesisAuction = await ThesisAuction.deploy(
     thesisNFTAddress,
-    auctionPrice,
-    ownerAddress
+    initialPrice,
+    nftOwner,
+    platformWallet
   );
+
   await thesisAuction.waitForDeployment();
 
-  console.log("ThesisAuction contract deployed to:", await thesisAuction.getAddress());
+  console.log("ThesisAuction deployed to:", await thesisAuction.getAddress());
 }
 
 main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
-});
+}); 

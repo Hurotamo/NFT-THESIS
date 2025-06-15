@@ -9,8 +9,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "hardhat/console.sol";
 
 interface IStaking {
-    function hasDiscount(address user) external view returns (bool);
-    function discountPercent() external view returns (uint256);
+    function getDiscountPercentage(address user) external view returns (uint256);
 }
 
 contract ThesisNFT is ERC721, Ownable {
@@ -69,8 +68,9 @@ contract ThesisNFT is ERC721, Ownable {
         require(totalSupply() + amount <= maxSupply, "Exceeds max supply");
 
         uint256 effectivePrice = price;
-        if (stakingContract.hasDiscount(msg.sender)) {
-            uint256 discount = (price * stakingContract.discountPercent()) / 100;
+        uint256 discountPercent = stakingContract.getDiscountPercentage(msg.sender);
+        if (discountPercent > 0) {
+            uint256 discount = (price * discountPercent) / 100;
             effectivePrice = price - discount;
         }
 
@@ -97,8 +97,8 @@ contract ThesisNFT is ERC721, Ownable {
 
         emit Minted(msg.sender, amount, startTokenId);
 
-        // If max supply reached, start auction
-        if (totalSupply() == maxSupply) {
+        // If min supply reached, start auction
+        if (totalSupply() >= minSupply) {
             auctionStarted = true;
             emit AuctionStarted();
         }

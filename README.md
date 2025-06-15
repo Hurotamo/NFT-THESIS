@@ -1,4 +1,3 @@
-
 # Thesis Vault Protocol
 
 A decentralized platform for academic thesis minting and trading on CORE Blockchain Testnet.
@@ -115,3 +114,53 @@ Currency Symbol: tCORE2
 Block Explorer URL: https://scan.test2.btcs.network
 Faucet: https://scan.test2.btcs.network/faucet
 Staking Website: https://stake.test2.btcs.network/
+
+# NFT Thesis Project
+
+This project contains a set of smart contracts for an NFT project, including an NFT, staking, and auction contract.
+
+## Prerequisites
+
+- Node.js and npm installed
+- A Core Testnet account with some tCORE for gas fees
+- A `.env` file in the `core-contract` directory with your private key:
+
+```
+PRIVATE_KEY=your_private_key_here
+```
+
+## Installation
+
+1. Clone the repository
+2. Install dependencies:
+
+```bash
+npm install
+cd core-contract
+npm install
+```
+
+## Deployment
+
+To deploy the contracts to the Core Testnet, run the following command from the root directory:
+
+```bash
+npm run deploy:contracts
+```
+
+This will run the deployment scripts in the following order:
+
+1.  `deployStaking.ts`
+2.  `deployThesis-NFT.ts`
+3.  `deployThesis-Auction.ts`
+
+**Important:** The deployment scripts currently use placeholder addresses for contract dependencies. You will need to update the scripts in `core-contract/scripts` with the actual addresses of the deployed contracts as you deploy them. For example, after deploying the `Staking` contract, you will need to update `deployThesis-NFT.ts` with the new staking contract address.
+
+## Running Tests
+
+To run the smart contract tests, run the following command:
+
+```bash
+cd core-contract
+npx hardhat test
+```
