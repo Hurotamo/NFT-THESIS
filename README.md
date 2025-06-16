@@ -62,58 +62,13 @@ The application will automatically prompt you to:
 - **RPC URL**: https://rpc.test.btcs.network
 - **Block Explorer**: https://scan.test.btcs.network
 
-## Usage
-
-1. **Connect Wallet**: Click "Connect to CORE Testnet" to link your MetaMask wallet
-2. **Post Thesis**: Upload your academic thesis and mint it as an NFT
-3. **Browse & Mint**: Explore available theses and mint copies
-4. **Stake & Earn**: Participate in the staking mechanism
-5. **Profile**: View your portfolio and transaction history
-
-## Development
-
-### Project Structure
-
-```
-src/
-├── components/          # React components
-├── hooks/              # Custom React hooks
-├── pages/              # Page components
-├── utils/              # Utility functions
-└── lib/                # Library configurations
-```
-
-### Key Components
-
-- `WalletConnect`: MetaMask integration and network management
-- `ThesisPosting`: Thesis upload and minting interface
-- `UserProfile`: Portfolio and user data management
-- `MintingSection`: NFT minting functionality
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Support
-
-For support and questions, please open an issue in the repository or contact the development team.
-
-
-Network Name: Core Blockchain TestNet
-New RPC URL: https://rpc.test2.btcs.network
-Chain ID: 1114
-Currency Symbol: tCORE2
-Block Explorer URL: https://scan.test2.btcs.network
-Faucet: https://scan.test2.btcs.network/faucet
-Staking Website: https://stake.test2.btcs.network/
+- **Network Name**: Core Blockchain TestNet
+- **New RPC URL**: https://rpc.test2.btcs.network
+- **Chain ID**: 1114
+- **Currency Symbol**: tCORE2
+- **Block Explorer URL**: https://scan.test2.btcs.network
+- **Faucet**: https://scan.test2.btcs.network/faucet
+- **Staking Website**: https://stake.test2.btcs.network/
 
 # NFT Thesis Project
 
@@ -163,4 +118,3 @@ To run the smart contract tests, run the following command:
 ```bash
 cd core-contract
 npx hardhat test
-```

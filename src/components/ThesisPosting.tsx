@@ -1,5 +1,9 @@
 
+<<<<<<< HEAD
 import { useState } from 'react';
+=======
+import React, { useState } from 'react';
+>>>>>>> origin/feature/local-changes
 import { motion } from 'framer-motion';
 import { Upload, FileText, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { Button } from "@/components/ui/button";

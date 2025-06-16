@@ -1,5 +1,9 @@
 
+<<<<<<< HEAD
 import { useState } from 'react';
+=======
+import React, { useState } from 'react';
+>>>>>>> origin/feature/local-changes
 import { motion } from 'framer-motion';
 import { User, FileText, Coins, TrendingUp, Calendar, Activity, BarChart3 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
