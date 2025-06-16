@@ -1,18 +1,9 @@
-
-<<<<<<< HEAD
-import { useState } from 'react';
-=======
 import React, { useState } from 'react';
->>>>>>> origin/feature/local-changes
 import { motion } from 'framer-motion';
 import { Upload, FileText, CheckCircle } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-<<<<<<< HEAD
-import { create } from 'ipfs-http-client';
-=======
->>>>>>> origin/feature/local-changes
 
 interface ThesisUploadProps {
   walletAddress: string;
@@ -33,11 +24,6 @@ export interface ThesisData {
   walletAddress: string;
 }
 
-<<<<<<< HEAD
-const ipfs = create({ url: 'http://127.0.0.1:5001/api/v0' });
-
-=======
->>>>>>> origin/feature/local-changes
 const ThesisUpload: React.FC<ThesisUploadProps> = ({ walletAddress, onUploadSuccess }) => {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
@@ -81,16 +67,9 @@ const ThesisUpload: React.FC<ThesisUploadProps> = ({ walletAddress, onUploadSucc
     setIsUploading(true);
 
     try {
-<<<<<<< HEAD
-      // Upload file to IPFS
-      const added = await ipfs.add(file);
-      const ipfsHash = added.path;
-
-=======
       // Simulate IPFS upload and thesis posting
       await new Promise(resolve => setTimeout(resolve, 2000));
       
->>>>>>> origin/feature/local-changes
       const newThesis: ThesisData = {
         id: Math.random().toString(36).substr(2, 9),
         title,
@@ -100,11 +79,7 @@ const ThesisUpload: React.FC<ThesisUploadProps> = ({ walletAddress, onUploadSucc
         year,
         field,
         file,
-<<<<<<< HEAD
-        ipfsHash,
-=======
         ipfsHash: `Qm${Math.random().toString(36).substr(2, 44)}`,
->>>>>>> origin/feature/local-changes
         postedAt: new Date(),
         walletAddress
       };

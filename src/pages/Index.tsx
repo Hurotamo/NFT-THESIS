@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-
-=======
->>>>>>> origin/feature/local-changes
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
@@ -15,13 +11,9 @@ import StakingSection from '../components/StakingSection';
 import AuctionSection from '../components/AuctionSection';
 import ThesisPosting from '../components/ThesisPosting';
 import UserProfile from '../components/UserProfile';
-
-<<<<<<< HEAD
-=======
-// Import the new enhanced section
 import EnhancedMintingSection from '../components/EnhancedMintingSection';
+import Footer from '../components/Footer';
 
->>>>>>> origin/feature/local-changes
 // 3D NFT Card Component
 function FloatingNFT() {
   return (
@@ -105,11 +97,6 @@ function ThreeScene() {
   );
 }
 
-<<<<<<< HEAD
-=======
-import Footer from '../components/Footer';
-
->>>>>>> origin/feature/local-changes
 const Index = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string>('');
@@ -147,11 +134,7 @@ const Index = () => {
       case 'post':
         return <ThesisPosting walletAddress={walletAddress} />;
       case 'mint':
-<<<<<<< HEAD
-        return <MintingSection walletAddress={walletAddress} />;
-=======
         return <EnhancedMintingSection walletAddress={walletAddress} />;
->>>>>>> origin/feature/local-changes
       case 'stake':
         return <StakingSection walletAddress={walletAddress} />;
       case 'auction':
@@ -409,12 +392,9 @@ const Index = () => {
       <main className="pt-20">
         {renderActiveSection()}
       </main>
-<<<<<<< HEAD
-=======
 
       {/* Footer */}
       <Footer />
->>>>>>> origin/feature/local-changes
     </div>
   );
 };

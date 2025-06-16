@@ -26,12 +26,8 @@
       "@/*": ["./src/*"]
     }
   },
-<<<<<<< HEAD
   "include": ["src"],
   "devDependencies": {
     "@types/json-schema": "^7.0.0"
   }
-=======
-  "include": ["src"]
->>>>>>> origin/feature/local-changes
 }

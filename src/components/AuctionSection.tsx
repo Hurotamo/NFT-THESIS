@@ -1,9 +1,4 @@
-
-<<<<<<< HEAD
-import { useState, useEffect } from 'react';
-=======
 import React, { useState, useEffect } from 'react';
->>>>>>> origin/feature/local-changes
 import { motion } from 'framer-motion';
 import { Gavel, Clock, Shield, TrendingUp, AlertCircle, FileText, Users, DollarSign } from 'lucide-react';
 import { Button } from "@/components/ui/button";
