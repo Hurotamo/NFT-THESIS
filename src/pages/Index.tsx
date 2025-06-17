@@ -5,6 +5,7 @@ import { OrbitControls, Float, Center } from '@react-three/drei';
 import { Wallet, FileText, Coins, Gavel, Menu, X, Upload, User, AlertCircle, LogOut } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useWeb3 } from "@/contexts/Web3Context";
 import WalletConnect from '../components/WalletConnect';
 import MintingSection from '../components/MintingSection';
 import StakingSection from '../components/StakingSection';
@@ -99,9 +100,16 @@ function ThreeScene() {
 
 const Index = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [walletAddress, setWalletAddress] = useState<string>('');
   const [activeSection, setActiveSection] = useState('home');
   const { toast } = useToast();
+  const { 
+    currentAccount, 
+    isConnected, 
+    isCorrectNetwork, 
+    networkStatus,
+    connectWallet, 
+    disconnectWallet 
+  } = useWeb3();
 
   const navigation = [
     { name: 'Home', id: 'home', icon: FileText },
@@ -112,36 +120,28 @@ const Index = () => {
     { name: 'Profile', id: 'profile', icon: User },
   ];
 
-  const handleWalletConnect = (address: string) => {
-    setWalletAddress(address);
-    toast({
-      title: "Wallet Connected",
-      description: `Connected to ${address.slice(0, 6)}...${address.slice(-4)}`,
-    });
+  const handleWalletConnect = async () => {
+    await connectWallet();
   };
 
   const handleWalletLogout = () => {
-    setWalletAddress('');
+    disconnectWallet();
     setActiveSection('home');
-    toast({
-      title: "Wallet Disconnected",
-      description: "You have been logged out successfully",
-    });
   };
 
   const renderActiveSection = () => {
     switch (activeSection) {
       case 'post':
-        return <ThesisPosting walletAddress={walletAddress} />;
+        return <ThesisPosting walletAddress={currentAccount || ''} />;
       case 'mint':
-        return <EnhancedMintingSection walletAddress={walletAddress} />;
+        return <EnhancedMintingSection walletAddress={currentAccount || ''} />;
       case 'stake':
-        return <StakingSection walletAddress={walletAddress} />;
+        return <StakingSection walletAddress={currentAccount || ''} />;
       case 'auction':
-        return <AuctionSection walletAddress={walletAddress} />;
+        return <AuctionSection walletAddress={currentAccount || ''} />;
       case 'profile':
-        return walletAddress ? (
-          <UserProfile walletAddress={walletAddress} />
+        return currentAccount ? (
+          <UserProfile walletAddress={currentAccount} />
         ) : (
           <div className="min-h-screen flex items-center justify-center px-4">
             <motion.div
@@ -182,7 +182,7 @@ const Index = () => {
                     A revolutionary platform where students post academic research and investors mint them as NFTs. Powered by Core blockchain technology.
                   </p>
                   
-                  {!walletAddress ? (
+                  {!isConnected ? (
                     <WalletConnect onConnect={handleWalletConnect} />
                   ) : (
                     <motion.div
@@ -192,7 +192,7 @@ const Index = () => {
                     >
                       <div className="backdrop-blur-md bg-white/10 rounded-lg p-4 inline-block">
                         <p className="text-green-400 font-semibold">
-                          Wallet Connected: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                          Wallet Connected: {currentAccount?.slice(0, 6)}...{currentAccount?.slice(-4)}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-4 justify-center">
@@ -290,7 +290,7 @@ const Index = () => {
             </div>
 
             {/* Wallet Address Display with Logout */}
-            {walletAddress && (
+            {isConnected && currentAccount && (
               <div className="hidden md:flex items-center space-x-2">
                 <button
                   onClick={handleWalletLogout}
@@ -298,7 +298,7 @@ const Index = () => {
                 >
                   <Wallet className="w-4 h-4" />
                   <span className="text-sm font-mono">
-                    {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                    {currentAccount.slice(0, 6)}...{currentAccount.slice(-4)}
                   </span>
                   <LogOut className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
@@ -326,12 +326,12 @@ const Index = () => {
             {/* Mobile Menu Button */}
             <div className="md:hidden flex items-center space-x-2">
               {/* Mobile Wallet Display */}
-              {walletAddress && (
+              {isConnected && currentAccount && (
                 <button
                   onClick={handleWalletLogout}
                   className="flex items-center space-x-1 px-2 py-1 bg-green-600/20 border border-green-400/30 text-green-400 rounded text-xs"
                 >
-                  <span>{walletAddress.slice(0, 4)}...{walletAddress.slice(-2)}</span>
+                  <span>{currentAccount.slice(0, 4)}...{currentAccount.slice(-2)}</span>
                   <LogOut className="w-3 h-3" />
                 </button>
               )}
@@ -371,7 +371,7 @@ const Index = () => {
                   <span>{item.name}</span>
                 </button>
               ))}
-              {walletAddress && (
+              {isConnected && (
                 <button
                   onClick={() => {
                     handleWalletLogout();

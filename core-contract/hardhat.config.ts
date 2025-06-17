@@ -1,8 +1,9 @@
-import path from 'path'
+import path from 'path';
 import dotenv from 'dotenv';
-dotenv.config({ path: path.resolve(__dirname, '.env') });
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const { PRIVATE_KEY } = process.env;
 
@@ -19,13 +20,6 @@ const config: HardhatUserConfig = {
       url: 'https://rpc.test2.btcs.network',
       chainId: 1114
     },
-    sepolia: {
-      accounts: [
-        PRIVATE_KEY as string
-      ],
-      url: 'https://ethereum-sepolia-rpc.publicnode.com',
-      chainId: 11155111
-    }
   }
 };
 

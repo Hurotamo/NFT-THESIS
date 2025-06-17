@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Wrapper.sol";
 
 contract Staking is ReentrancyGuard, AccessControlEnumerable {
-    using SafeERC20 for IERC20;
     using Checkpoints for Checkpoints.Trace224;
  
     event Staked(address indexed user, uint256 amount);
@@ -19,7 +14,7 @@ contract Staking is ReentrancyGuard, AccessControlEnumerable {
     event UserBlacklisted(address indexed user, bool status);
     event StakeBlockDelayUpdated(uint256 newDelay);
     event AllowedContractUpdated(address indexed contractAddress, bool status);
-    event ERC20Recovered(address indexed tokenAddress, uint256 amount);
+    event NativeTokenRecovered(uint256 amount);
 
     struct StakeInfo {
         Checkpoints.Trace224 stakeHistory;
@@ -33,8 +28,7 @@ contract Staking is ReentrancyGuard, AccessControlEnumerable {
     event ParameterQueued(bytes32 indexed paramName, uint256 executionTime, uint256 newValue);
     event ParameterExecuted(bytes32 indexed paramName, uint256 executedValue);
 
-    // Core state
-    IERC20 public coreToken;
+    // Core state - tCORE2 is native token
     uint256 public constant TIMELOCK_DURATION = 2 days;
 
     // Parameter timelock storage
@@ -48,8 +42,8 @@ contract Staking is ReentrancyGuard, AccessControlEnumerable {
     TimelockData private _stakeBlockDelayTimelock;
 
     // Configuration
-    uint256 public minimumStake = 100 * 10**18;
-    uint256 public discountPercent = 20;
+    uint256 public minimumStake = 0.1 * 10**18; // 0.1 tCORE2 for discount eligibility
+    uint256 public discountPercent = 20; // 20% discount for staking 0.1 tCORE2
     uint256 public constant MAX_DISCOUNT = 100;
     uint256 public stakeBlockDelay = 1;
 
@@ -61,21 +55,9 @@ contract Staking is ReentrancyGuard, AccessControlEnumerable {
     // Roles
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
-    // Permit signature data
-    struct Permit {
-        uint256 deadline;
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
-    }
-
-    constructor(address coreTokenAddress, address initialAdmin) {
-        
+    constructor(address initialAdmin) {
         _grantRole(DEFAULT_ADMIN_ROLE, initialAdmin);
         _grantRole(ADMIN_ROLE, initialAdmin);
-        if (coreTokenAddress != address(0)) {
-            coreToken = IERC20(coreTokenAddress);
-        }
     }
 
     // EIP-173 compliance
@@ -91,10 +73,10 @@ contract Staking is ReentrancyGuard, AccessControlEnumerable {
         emit OwnershipTransferred(oldOwner, newOwner);
     }
 
-    // Gasless staking with permit
-    function stake(uint256 amount, Permit calldata permit) external payable nonReentrant {
+    // Native tCORE2 staking (not gasless, user must pay gas)
+    function stake() external payable nonReentrant {
         require(!isBlacklisted[msg.sender], "User blacklisted");
-        require(amount > 0, "Amount must be > 0");
+        require(msg.value > 0, "Amount must be > 0");
 
         // Allow EOAs or whitelisted contracts
         require(
@@ -103,38 +85,10 @@ contract Staking is ReentrancyGuard, AccessControlEnumerable {
         );
 
         StakeInfo storage userStake = stakes[msg.sender];
-
-        if (address(coreToken) == address(0)) {
-            // Native token staking
-            require(msg.value == amount, "Incorrect native token amount sent");
-            userStake.stakeHistory.push(uint32(block.number), uint224(userStake.stakeHistory.latest() + amount));
-            userStake.lastStakeBlock = block.number;
-            emit Staked(msg.sender, amount);
-            return;
-        }
-
-        // Handle permit if provided
-        if (msg.sender == tx.origin && permit.deadline > 0) {
-            IERC20Permit(address(coreToken)).permit(
-                msg.sender,
-                address(this),
-                amount,
-                permit.deadline,
-                permit.v,
-                permit.r,
-                permit.s
-            );
-        }
-
-        uint256 balanceBefore = coreToken.balanceOf(address(this));
-        coreToken.safeTransferFrom(msg.sender, address(this), amount);
-        uint256 received = coreToken.balanceOf(address(this)) - balanceBefore;
-        require(received > 0, "No tokens received");
-
-        userStake.stakeHistory.push(uint32(block.number), uint224(userStake.stakeHistory.latest() + received));
+        userStake.stakeHistory.push(uint32(block.number), uint224(userStake.stakeHistory.latest() + msg.value));
         userStake.lastStakeBlock = block.number;
-
-        emit Staked(msg.sender, received);
+        
+        emit Staked(msg.sender, msg.value);
     }
 
     // Timelocked parameter updates
@@ -176,7 +130,7 @@ contract Staking is ReentrancyGuard, AccessControlEnumerable {
         }
     }
 
-    // Enhanced unstake with fee handling
+    // Native tCORE2 unstaking (not gasless, user must pay gas)
     function unstake(uint256 amount) external nonReentrant {
         require(!isBlacklisted[msg.sender], "User blacklisted");
         require(amount > 0, "Amount must be > 0");
@@ -186,17 +140,8 @@ contract Staking is ReentrancyGuard, AccessControlEnumerable {
         require(currentAmount >= amount, "Insufficient stake");
         require(block.number > userStake.lastStakeBlock + stakeBlockDelay, "Stake locked");
 
-        if (address(coreToken) == address(0)) {
-            // Native token unstaking
-            payable(msg.sender).transfer(amount);
-            uint256 newAmount = currentAmount - amount;
-            userStake.stakeHistory.push(uint32(block.number), uint224(newAmount));
-            userStake.lastStakeBlock = block.number;
-            emit Unstaked(msg.sender, amount);
-            return;
-        }
-
-        coreToken.safeTransfer(msg.sender, amount);
+        // Transfer native tCORE2 tokens
+        payable(msg.sender).transfer(amount);
        
         userStake.stakeHistory.push(uint32(block.number), uint224(currentAmount - amount));
         userStake.lastStakeBlock = block.number;
@@ -224,9 +169,17 @@ contract Staking is ReentrancyGuard, AccessControlEnumerable {
         emit UserBlacklisted(user, status);
     }
 
-    function recoverERC20(address tokenAddress, uint256 amount) external onlyRole(ADMIN_ROLE) nonReentrant {
-        require(tokenAddress != address(coreToken), "Cannot recover staking token");
-        IERC20(tokenAddress).safeTransfer(getRoleMember(DEFAULT_ADMIN_ROLE, 0), amount);
-        emit ERC20Recovered(tokenAddress, amount);
+    // Recover native tCORE2 tokens (emergency only)
+    function recoverNativeTokens() external onlyRole(ADMIN_ROLE) nonReentrant {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "No native tokens to recover");
+        
+        payable(getRoleMember(DEFAULT_ADMIN_ROLE, 0)).transfer(balance);
+        emit NativeTokenRecovered(balance);
+    }
+
+    // Receive function to accept native tCORE2 tokens
+    receive() external payable {
+        // This allows the contract to receive native tokens
     }
 }

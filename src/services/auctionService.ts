@@ -1,4 +1,6 @@
-
+import Web3 from "web3";
+import contractAddresses from "../config/contractAddresses";
+import ThesisAuctionABI from "../../core-contract/artifacts/contracts/Thesis-Auction.sol/ThesisAuction.json";
 import { NFTContractService, MintedNFT } from './nftContractService';
 
 export interface AuctionConfig {
@@ -32,6 +34,9 @@ export interface Auction {
 
 export class AuctionService {
   private static instance: AuctionService;
+  private web3: Web3;
+  private contract: any;
+  private walletAddress: string | null = null;
   private auctions: Map<string, Auction> = new Map();
   private nftService = NFTContractService.getInstance();
 
@@ -42,11 +47,27 @@ export class AuctionService {
     return AuctionService.instance;
   }
 
-  createAuction(
+  constructor() {
+    this.web3 = new Web3((window as any).ethereum);
+    this.contract = new this.web3.eth.Contract(
+      ThesisAuctionABI.abi,
+      contractAddresses.thesisAuction
+    );
+  }
+
+  async setWalletAddress(address: string) {
+    this.walletAddress = address;
+  }
+
+  async createAuction(
     nftTokenId: string,
     seller: string,
     config: AuctionConfig
-  ): string {
+  ): Promise<string> {
+    if (!this.walletAddress) {
+      throw new Error("Wallet address not set");
+    }
+
     const auctionId = `auction_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const startTime = new Date();
     const endTime = new Date(startTime.getTime() + (config.duration * 60 * 60 * 1000));
@@ -68,6 +89,10 @@ export class AuctionService {
   }
 
   async placeBid(auctionId: string, bidder: string, amount: number): Promise<boolean> {
+    if (!this.walletAddress) {
+      throw new Error("Wallet address not set");
+    }
+
     const auction = this.auctions.get(auctionId);
     if (!auction) {
       throw new Error('Auction not found');
@@ -83,7 +108,7 @@ export class AuctionService {
 
     // Check if only minters can bid
     if (auction.config.onlyMintersCanBid) {
-      const userNFTs = this.nftService.getUserMintedNFTs(bidder);
+      const userNFTs = await this.nftService.getUserMintedNFTs();
       const hasNFTFromThesis = userNFTs.some(nft => 
         nft.tokenId.split('_')[0] === auction.nftTokenId.split('_')[0]
       );
@@ -125,7 +150,11 @@ export class AuctionService {
     return true;
   }
 
-  endAuction(auctionId: string): Auction | null {
+  async endAuction(auctionId: string): Promise<Auction | null> {
+    if (!this.walletAddress) {
+      throw new Error("Wallet address not set");
+    }
+
     const auction = this.auctions.get(auctionId);
     if (!auction) return null;
 
@@ -150,7 +179,7 @@ export class AuctionService {
       }
 
       // Transfer NFT to winner and unblur it
-      this.nftService.unblurNFT(auction.nftTokenId, auction.winner);
+      await this.nftService.unblurNFT(auction.nftTokenId);
     }
 
     return auction;

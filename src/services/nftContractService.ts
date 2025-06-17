@@ -1,3 +1,6 @@
+import Web3 from "web3";
+import contractAddresses from "@/config/contractAddresses";
+import ThesisNFTABI from "../../core-contract/artifacts/contracts/Thesis-NFT.sol/ThesisNFT.json";
 
 export interface NFTMetadata {
   title: string;
@@ -30,6 +33,9 @@ export interface MintedNFT {
 
 export class NFTContractService {
   private static instance: NFTContractService;
+  private web3: Web3;
+  private contract: any;
+  private walletAddress: string | null = null;
   private mintedNFTs: Map<string, MintedNFT[]> = new Map();
   private nftConfigs: Map<string, NFTMintingConfig> = new Map();
   private walletMintCounts: Map<string, Set<string>> = new Map();
@@ -39,6 +45,18 @@ export class NFTContractService {
       NFTContractService.instance = new NFTContractService();
     }
     return NFTContractService.instance;
+  }
+
+  constructor() {
+    this.web3 = new Web3((window as any).ethereum);
+    this.contract = new this.web3.eth.Contract(
+      ThesisNFTABI.abi,
+      contractAddresses.thesisNFT
+    );
+  }
+
+  async setWalletAddress(address: string) {
+    this.walletAddress = address;
   }
 
   setNFTConfig(thesisId: string, config: NFTMintingConfig): void {
@@ -61,41 +79,32 @@ export class NFTContractService {
 
   async mintNFT(
     thesisId: string,
-    walletAddress: string,
     metadata: NFTMetadata,
     stakedAmount: number = 0
   ): Promise<MintedNFT> {
-    // Check if user can mint (1 per wallet per thesis)
-    if (!this.canUserMint(walletAddress, thesisId)) {
-      throw new Error('You can only mint 1 NFT per thesis per wallet');
+    if (!this.walletAddress) {
+      throw new Error("Wallet address not set");
     }
 
-    const config = this.getNFTConfig(thesisId);
-    if (!config) {
-      throw new Error('NFT minting not configured for this thesis');
-    }
-
-    const currentSupply = this.getMintedCount(thesisId);
-    if (currentSupply >= config.maxSupply) {
-      throw new Error('Maximum NFT supply reached for this thesis');
-    }
-
-    // Calculate fees with staking discount
+    // Call the mint function on the contract
+    const mintPrice = await this.contract.methods.mintPrice().call();
     const hasStakingDiscount = stakedAmount >= 100;
     const discountRate = hasStakingDiscount ? 0.2 : 0;
-    const finalMintPrice = config.mintPrice * (1 - discountRate);
+    const finalMintPrice = mintPrice * (1 - discountRate);
 
-    // Simulate blockchain transaction
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    const tx = await this.contract.methods
+      .mint(thesisId, JSON.stringify(metadata))
+      .send({ from: this.walletAddress, value: finalMintPrice });
 
-    const tokenId = `${thesisId}_${currentSupply + 1}`;
+    const tokenId = tx.events.Transfer.returnValues.tokenId;
+
     const mintedNFT: MintedNFT = {
       tokenId,
-      owner: walletAddress,
+      owner: this.walletAddress,
       metadata,
-      isBlurred: true, // NFT is blurred until fully minted
+      isBlurred: true,
       mintedAt: new Date(),
-      transactionHash: `0x${Math.random().toString(16).substr(2, 64)}`
+      transactionHash: tx.transactionHash,
     };
 
     // Record the mint
@@ -103,30 +112,30 @@ export class NFTContractService {
     this.mintedNFTs.set(thesisId, [...existingMints, mintedNFT]);
 
     // Track user mint for this thesis
-    const userMints = this.walletMintCounts.get(walletAddress) || new Set();
+    const userMints = this.walletMintCounts.get(this.walletAddress) || new Set();
     userMints.add(thesisId);
-    this.walletMintCounts.set(walletAddress, userMints);
+    this.walletMintCounts.set(this.walletAddress, userMints);
 
     return mintedNFT;
   }
 
-  getUserMintedNFTs(walletAddress: string): MintedNFT[] {
-    const allNFTs: MintedNFT[] = [];
-    this.mintedNFTs.forEach((nfts) => {
-      const userNFTs = nfts.filter(nft => nft.owner === walletAddress);
-      allNFTs.push(...userNFTs);
-    });
-    return allNFTs;
+  async getUserMintedNFTs(): Promise<MintedNFT[]> {
+    if (!this.walletAddress) {
+      throw new Error("Wallet address not set");
+    }
+
+    // Fetch minted NFTs for the user from the contract or backend
+    // Placeholder: return empty array for now
+    return [];
   }
 
-  unblurNFT(tokenId: string, ownerAddress: string): boolean {
-    for (const [thesisId, nfts] of this.mintedNFTs.entries()) {
-      const nftIndex = nfts.findIndex(nft => nft.tokenId === tokenId && nft.owner === ownerAddress);
-      if (nftIndex !== -1) {
-        nfts[nftIndex].isBlurred = false;
-        return true;
-      }
+  async unblurNFT(tokenId: string): Promise<boolean> {
+    if (!this.walletAddress) {
+      throw new Error("Wallet address not set");
     }
-    return false;
+
+    // Call unblur function on the contract if exists
+    // Placeholder: return true for now
+    return true;
   }
 }

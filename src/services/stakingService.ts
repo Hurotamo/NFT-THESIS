@@ -1,3 +1,6 @@
+import Web3 from "web3";
+import contractAddresses from "../config/contractAddresses";
+import StakingABI from "../../core-contract/artifacts/contracts/Staking.sol/Staking.json";
 
 export interface StakePosition {
   amount: number;
@@ -17,19 +20,9 @@ export interface StakingConfig {
 
 export class StakingService {
   private static instance: StakingService;
-  private stakes: Map<string, StakePosition[]> = new Map();
-  private config: StakingConfig = {
-    minimumStake: 10,
-    discountThreshold: 100,
-    discountPercentage: 20,
-    lockPeriods: [30, 90, 180, 365],
-    rewardRates: new Map([
-      [30, 5],   // 5% APY for 30 days
-      [90, 8],   // 8% APY for 90 days
-      [180, 12], // 12% APY for 180 days
-      [365, 18]  // 18% APY for 365 days
-    ])
-  };
+  private web3: Web3;
+  private contract: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  private walletAddress: string | null = null;
 
   static getInstance(): StakingService {
     if (!StakingService.instance) {
@@ -38,113 +31,213 @@ export class StakingService {
     return StakingService.instance;
   }
 
+  constructor() {
+    this.web3 = new Web3((window as { ethereum?: any }).ethereum);
+    this.contract = new this.web3.eth.Contract(
+      StakingABI.abi,
+      contractAddresses.staking
+    );
+  }
+
+  async setWalletAddress(address: string) {
+    this.walletAddress = address;
+  }
+
   async stakeTokens(
-    walletAddress: string,
     amount: number,
     lockPeriod: number
   ): Promise<StakePosition> {
-    if (amount < this.config.minimumStake) {
-      throw new Error(`Minimum stake amount is ${this.config.minimumStake} CORE`);
+    if (!this.walletAddress) {
+      throw new Error("Wallet address not set");
     }
 
-    if (!this.config.lockPeriods.includes(lockPeriod)) {
-      throw new Error('Invalid lock period');
+    try {
+      // Check minimum stake requirement (0.1 tCORE2)
+      const minimumStake = await this.contract.methods.minimumStake().call();
+      const minimumStakeInCORE = Number(this.web3.utils.fromWei(minimumStake, 'ether'));
+      
+      if (amount < minimumStakeInCORE) {
+        throw new Error(`Minimum stake amount is ${minimumStakeInCORE} tCORE2 for discount eligibility`);
+      }
+
+      console.log(`Attempting to stake ${amount} tCORE2 tokens for ${lockPeriod} days`);
+      console.log(`Minimum stake required: ${minimumStakeInCORE} tCORE2`);
+      
+      // Convert amount to wei (native token units)
+      const amountInWei = this.web3.utils.toWei(amount.toString(), 'ether');
+      
+      // For native token staking, we only need to call stake() with the value
+      // The contract will receive the native tokens via msg.value
+      const tx = await this.contract.methods
+        .stake()
+        .send({ 
+          from: this.walletAddress,
+          value: amountInWei, // Send the actual tCORE2 value
+          gas: 200000,
+          maxPriorityFeePerGas: this.web3.utils.toWei('1', 'gwei'),
+          maxFeePerGas: this.web3.utils.toWei('2', 'gwei')
+        });
+
+      console.log('Staking transaction:', tx);
+
+      const stakedAt = new Date();
+      const unlockAt = new Date(stakedAt.getTime() + lockPeriod * 24 * 60 * 60 * 1000);
+
+      return {
+        amount,
+        stakedAt,
+        lockPeriod,
+        unlockAt,
+        rewards: 0
+      };
+    } catch (error) {
+      console.error('Staking failed:', error);
+      throw error;
     }
-
-    // Simulate blockchain transaction
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const stakedAt = new Date();
-    const unlockAt = new Date(stakedAt.getTime() + (lockPeriod * 24 * 60 * 60 * 1000));
-
-    const position: StakePosition = {
-      amount,
-      stakedAt,
-      lockPeriod,
-      unlockAt,
-      rewards: 0
-    };
-
-    const userStakes = this.stakes.get(walletAddress) || [];
-    userStakes.push(position);
-    this.stakes.set(walletAddress, userStakes);
-
-    return position;
   }
 
   async unstakeTokens(
-    walletAddress: string,
-    positionIndex: number
+    amount: number
   ): Promise<{ amount: number; rewards: number }> {
-    const userStakes = this.stakes.get(walletAddress) || [];
+    if (!this.walletAddress) {
+      throw new Error("Wallet address not set");
+    }
+
+    try {
+      // Convert amount to wei
+      const amountInWei = this.web3.utils.toWei(amount.toString(), 'ether');
+      
+      // Call the unstake function with the amount to unstake
+      const tx = await this.contract.methods
+        .unstake(amountInWei)
+        .send({ 
+          from: this.walletAddress,
+          gas: 200000,
+          maxPriorityFeePerGas: this.web3.utils.toWei('1', 'gwei'),
+          maxFeePerGas: this.web3.utils.toWei('2', 'gwei')
+        });
+
+      console.log('Unstaking transaction:', tx);
+
+      return { amount, rewards: 0 };
+    } catch (error) {
+      console.error('Unstaking failed:', error);
+      throw error; // Re-throw the actual error for proper handling
+    }
+  }
+
+  async getTotalStaked(): Promise<number> {
+    if (!this.walletAddress) {
+      throw new Error("Wallet address not set");
+    }
     
-    if (positionIndex >= userStakes.length) {
-      throw new Error('Invalid stake position');
+    try {
+      const totalStaked = await this.contract.methods.userStakeHistoryLatest(this.walletAddress).call();
+      return Number(this.web3.utils.fromWei(totalStaked, 'ether'));
+    } catch (error) {
+      console.error('Failed to get total staked:', error);
+      return 0;
     }
+  }
 
-    const position = userStakes[positionIndex];
-    const now = new Date();
-
-    if (now < position.unlockAt) {
-      throw new Error('Stake is still locked');
+  async hasDiscountEligibility(): Promise<boolean> {
+    try {
+      const discountPercentage = await this.getDiscountPercentage();
+      return discountPercentage > 0;
+    } catch (error) {
+      console.error('Failed to check discount eligibility:', error);
+      return false;
     }
-
-    // Calculate rewards
-    const stakingDays = Math.floor((now.getTime() - position.stakedAt.getTime()) / (24 * 60 * 60 * 1000));
-    const apy = this.config.rewardRates.get(position.lockPeriod) || 0;
-    const rewards = (position.amount * apy / 100) * (stakingDays / 365);
-
-    // Simulate blockchain transaction
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Remove position
-    userStakes.splice(positionIndex, 1);
-    this.stakes.set(walletAddress, userStakes);
-
-    return {
-      amount: position.amount,
-      rewards
-    };
   }
 
-  getTotalStaked(walletAddress: string): number {
-    const userStakes = this.stakes.get(walletAddress) || [];
-    return userStakes.reduce((total, stake) => total + stake.amount, 0);
+  async getDiscountPercentage(): Promise<number> {
+    try {
+      if (!this.walletAddress) {
+        return 0;
+      }
+      
+      const discountPercent = await this.contract.methods.getDiscountPercentage(this.walletAddress).call();
+      return Number(discountPercent);
+    } catch (error) {
+      console.error('Failed to get discount percentage:', error);
+      return 0;
+    }
   }
 
-  hasDiscountEligibility(walletAddress: string): boolean {
-    return this.getTotalStaked(walletAddress) >= this.config.discountThreshold;
+  async getUserStakes(): Promise<StakePosition[]> {
+    if (!this.walletAddress) {
+      throw new Error("Wallet address not set");
+    }
+    
+    try {
+      const currentStake = await this.contract.methods.userStakeHistoryLatest(this.walletAddress).call();
+      const stakeAmount = Number(this.web3.utils.fromWei(currentStake, 'ether'));
+      
+      if (stakeAmount > 0) {
+        const stake: StakePosition = {
+          amount: stakeAmount,
+          stakedAt: new Date(), // This would come from events
+          lockPeriod: 30, // This would come from events
+          unlockAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // This would come from events
+          rewards: 0
+        };
+        return [stake];
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching user stakes:', error);
+      return [];
+    }
   }
 
-  getDiscountPercentage(walletAddress: string): number {
-    return this.hasDiscountEligibility(walletAddress) ? this.config.discountPercentage : 0;
-  }
-
-  getUserStakes(walletAddress: string): StakePosition[] {
-    return this.stakes.get(walletAddress) || [];
-  }
-
-  getUnlockableStakes(walletAddress: string): StakePosition[] {
-    const userStakes = this.getUserStakes(walletAddress);
+  async getUnlockableStakes(): Promise<StakePosition[]> {
+    const userStakes = await this.getUserStakes();
     const now = new Date();
     return userStakes.filter(stake => now >= stake.unlockAt);
   }
 
-  getLockedStakes(walletAddress: string): StakePosition[] {
-    const userStakes = this.getUserStakes(walletAddress);
+  async getLockedStakes(): Promise<StakePosition[]> {
+    const userStakes = await this.getUserStakes();
     const now = new Date();
     return userStakes.filter(stake => now < stake.unlockAt);
   }
 
-  calculatePendingRewards(walletAddress: string): number {
-    const userStakes = this.getUserStakes(walletAddress);
-    const now = new Date();
-    
-    return userStakes.reduce((totalRewards, stake) => {
-      const stakingDays = Math.floor((now.getTime() - stake.stakedAt.getTime()) / (24 * 60 * 60 * 1000));
-      const apy = this.config.rewardRates.get(stake.lockPeriod) || 0;
-      const rewards = (stake.amount * apy / 100) * (stakingDays / 365);
-      return totalRewards + rewards;
-    }, 0);
+  async calculatePendingRewards(): Promise<number> {
+    // For now, return 0 as the contract doesn't have reward mechanism yet
+    return 0;
+  }
+
+  async getStakingConfig(): Promise<StakingConfig> {
+    try {
+      const minimumStake = await this.contract.methods.minimumStake().call();
+      const discountPercent = await this.contract.methods.discountPercent().call();
+      
+      return {
+        minimumStake: Number(this.web3.utils.fromWei(minimumStake, 'ether')),
+        discountThreshold: Number(this.web3.utils.fromWei(minimumStake, 'ether')),
+        discountPercentage: Number(discountPercent),
+        lockPeriods: [30, 90, 180, 365],
+        rewardRates: new Map([
+          [30, 5],
+          [90, 8],
+          [180, 12],
+          [365, 15]
+        ])
+      };
+    } catch (error) {
+      console.error('Failed to get staking config:', error);
+      return {
+        minimumStake: 0.1,
+        discountThreshold: 0.1,
+        discountPercentage: 20,
+        lockPeriods: [30, 90, 180, 365],
+        rewardRates: new Map([
+          [30, 5],
+          [90, 8],
+          [180, 12],
+          [365, 15]
+        ])
+      };
+    }
   }
 }

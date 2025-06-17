@@ -1,23 +1,51 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Coins, TrendingUp, Gift, AlertCircle } from 'lucide-react';
+import { Coins, TrendingUp, Gift, AlertCircle, Lock, Unlock } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useContracts } from '@/hooks/useContracts';
+import { useWeb3 } from '@/contexts/Web3Context';
+import { StakePosition } from '@/services/stakingService';
 
 interface StakingSectionProps {
   walletAddress: string;
 }
 
 const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
-  const [stakedAmount, setStakedAmount] = useState(150);
   const [stakeInput, setStakeInput] = useState('');
   const [isStaking, setIsStaking] = useState(false);
   const [isUnstaking, setIsUnstaking] = useState(false);
+  const [totalStaked, setTotalStaked] = useState(0);
+  const [hasDiscount, setHasDiscount] = useState(false);
+  const [userStakes, setUserStakes] = useState<StakePosition[]>([]);
   const { toast } = useToast();
+  const { stakeTokens, unstakeTokens, getTotalStaked, hasDiscountEligibility, getUserStakes } = useContracts();
+  const { isConnected } = useWeb3();
 
-  const minimumStake = 100;
-  const hasDiscount = stakedAmount >= minimumStake;
-  const availableBalance = 500; // Mock balance
+  const minimumStake = 0.1; // 0.1 tCORE2 for discount eligibility
+  const availableBalance = 500; // Mock balance - in real app, get from wallet
+
+  useEffect(() => {
+    const loadStakingData = async () => {
+      if (isConnected && walletAddress) {
+        try {
+          const [staked, discount, stakes] = await Promise.all([
+            getTotalStaked(),
+            hasDiscountEligibility(),
+            getUserStakes()
+          ]);
+          
+          setTotalStaked(staked);
+          setHasDiscount(discount);
+          setUserStakes(stakes);
+        } catch (error) {
+          console.error('Failed to load staking data:', error);
+        }
+      }
+    };
+
+    loadStakingData();
+  }, [isConnected, walletAddress, getTotalStaked, hasDiscountEligibility, getUserStakes]);
 
   const handleStake = async () => {
     const amount = parseFloat(stakeInput);
@@ -33,7 +61,7 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
     if (amount > availableBalance) {
       toast({
         title: "Insufficient Balance",
-        description: "You don't have enough CORE tokens",
+        description: "You don't have enough tCORE2 tokens",
         variant: "destructive",
       });
       return;
@@ -41,18 +69,29 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
 
     setIsStaking(true);
     try {
-      // Simulate staking process
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setStakedAmount(prev => prev + amount);
+      const position = await stakeTokens(amount, 30); // Default 30 days for UI compatibility
+      
+      // Refresh data
+      const [staked, discount, stakes] = await Promise.all([
+        getTotalStaked(),
+        hasDiscountEligibility(),
+        getUserStakes()
+      ]);
+      
+      setTotalStaked(staked);
+      setHasDiscount(discount);
+      setUserStakes(stakes);
       setStakeInput('');
+      
       toast({
         title: "Staking Successful",
-        description: `Staked ${amount} CORE tokens successfully`,
+        description: `Staked ${amount} tCORE2 tokens`,
       });
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to stake tokens. Please try again.";
       toast({
         title: "Staking Failed",
-        description: "Failed to stake tokens. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -60,29 +99,31 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
     }
   };
 
-  const handleUnstake = async (amount: number) => {
-    if (amount > stakedAmount) {
-      toast({
-        title: "Invalid Amount",
-        description: "Cannot unstake more than staked amount",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const handleUnstake = async (stake: StakePosition) => {
     setIsUnstaking(true);
     try {
-      // Simulate unstaking process
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setStakedAmount(prev => prev - amount);
+      const result = await unstakeTokens(stake.amount);
+      
+      // Refresh data
+      const [staked, discount, stakes] = await Promise.all([
+        getTotalStaked(),
+        hasDiscountEligibility(),
+        getUserStakes()
+      ]);
+      
+      setTotalStaked(staked);
+      setHasDiscount(discount);
+      setUserStakes(stakes);
+      
       toast({
         title: "Unstaking Successful",
-        description: `Unstaked ${amount} CORE tokens successfully`,
+        description: `Unstaked ${result?.amount} CORE tokens with ${result?.rewards} rewards`,
       });
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to unstake tokens. Please try again.";
       toast({
         title: "Unstaking Failed",
-        description: "Failed to unstake tokens. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -90,7 +131,7 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
     }
   };
 
-  if (!walletAddress) {
+  if (!walletAddress || !isConnected) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <motion.div
@@ -115,10 +156,10 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
           className="text-center mb-12"
         >
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-            Stake CORE Tokens
+            Stake tCORE2 Tokens
           </h2>
           <p className="text-xl text-gray-400 max-w-3xl mx-auto">
-            Stake 100+ CORE tokens to unlock a 20% discount on all NFT minting fees. Earn rewards while supporting the network.
+            Stake 0.1+ tCORE2 tokens to unlock a 20% discount on all NFT minting fees. Support the Core Blockchain network.
           </p>
         </motion.div>
 
@@ -148,13 +189,13 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
               <div className="grid md:grid-cols-3 gap-6">
                 <div className="text-center">
                   <div className="text-3xl font-bold text-white mb-2">
-                    {stakedAmount.toFixed(0)}
+                    {totalStaked.toFixed(2)}
                   </div>
-                  <div className="text-gray-400">CORE Staked</div>
+                  <div className="text-gray-400">tCORE2 Staked</div>
                 </div>
                 <div className="text-center">
                   <div className="text-3xl font-bold text-purple-400 mb-2">
-                    {Math.max(0, minimumStake - stakedAmount)}
+                    {Math.max(0, minimumStake - totalStaked).toFixed(2)}
                   </div>
                   <div className="text-gray-400">Needed for Discount</div>
                 </div>
@@ -170,12 +211,12 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
               <div className="mt-8">
                 <div className="flex justify-between text-sm text-gray-400 mb-2">
                   <span>Progress to Discount</span>
-                  <span>{Math.min(100, (stakedAmount / minimumStake) * 100).toFixed(0)}%</span>
+                  <span>{Math.min(100, (totalStaked / minimumStake) * 100).toFixed(0)}%</span>
                 </div>
                 <div className="w-full bg-gray-700 rounded-full h-3">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(100, (stakedAmount / minimumStake) * 100)}%` }}
+                    animate={{ width: `${Math.min(100, (totalStaked / minimumStake) * 100)}%` }}
                     transition={{ duration: 1, ease: "easeOut" }}
                     className={`h-3 rounded-full ${
                       hasDiscount ? 'bg-green-400' : 'bg-blue-400'
@@ -185,152 +226,133 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
               </div>
             </div>
 
-            {/* Benefits Card */}
+            {/* Staking Form */}
             <div className="backdrop-blur-md bg-white/5 rounded-xl p-8 border border-white/10">
               <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
-                <TrendingUp className="w-8 h-8 text-green-400" />
-                Staking Benefits
+                <Lock className="w-8 h-8 text-blue-400" />
+                Stake Tokens
               </h3>
 
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-sm font-bold">
-                      1
-                    </div>
-                    <div>
-                      <h4 className="text-white font-semibold">Minting Discounts</h4>
-                      <p className="text-gray-400 text-sm">Get 20% off all NFT minting fees</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-sm font-bold">
-                      2
-                    </div>
-                    <div>
-                      <h4 className="text-white font-semibold">Network Security</h4>
-                      <p className="text-gray-400 text-sm">Help secure the Core network</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-sm font-bold">
-                      3
-                    </div>
-                    <div>
-                      <h4 className="text-white font-semibold">Priority Access</h4>
-                      <p className="text-gray-400 text-sm">Early access to new features</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 bg-yellow-600 rounded-full flex items-center justify-center text-sm font-bold">
-                      4
-                    </div>
-                    <div>
-                      <h4 className="text-white font-semibold">Governance Rights</h4>
-                      <p className="text-gray-400 text-sm">Vote on platform decisions</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Staking Actions */}
-          <motion.div
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-            className="space-y-6"
-          >
-            {/* Stake More */}
-            <div className="backdrop-blur-md bg-white/5 rounded-xl p-6 border border-white/10">
-              <h4 className="text-xl font-bold text-white mb-4">Stake More</h4>
-              
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <div>
-                  <label className="block text-gray-300 text-sm mb-2">
-                    Amount to Stake
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Amount to Stake (tCORE2)
                   </label>
                   <input
                     type="number"
                     value={stakeInput}
                     onChange={(e) => setStakeInput(e.target.value)}
                     placeholder="Enter amount"
-                    className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-400"
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-400"
                   />
-                  <div className="text-sm text-gray-400 mt-2">
-                    Available: {availableBalance} CORE
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  {[50, 100].map((amount) => (
-                    <button
-                      key={amount}
-                      onClick={() => setStakeInput(amount.toString())}
-                      className="bg-white/10 hover:bg-white/20 text-white py-2 px-3 rounded-lg text-sm transition-colors"
-                    >
-                      {amount} CORE
-                    </button>
-                  ))}
                 </div>
 
                 <Button
                   onClick={handleStake}
-                  disabled={!stakeInput || isStaking}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold disabled:opacity-50"
+                  disabled={isStaking || !stakeInput || parseFloat(stakeInput) <= 0}
+                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-3 rounded-lg font-semibold disabled:opacity-50"
                 >
                   {isStaking ? (
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       Staking...
                     </div>
                   ) : (
-                    'Stake CORE'
+                    <div className="flex items-center gap-2">
+                      <Lock className="w-5 h-5" />
+                      Stake Tokens
+                    </div>
                   )}
                 </Button>
               </div>
             </div>
 
-            {/* Unstake */}
-            <div className="backdrop-blur-md bg-white/5 rounded-xl p-6 border border-white/10">
-              <h4 className="text-xl font-bold text-white mb-4">Unstake</h4>
-              
-              <div className="space-y-4">
-                <div className="text-sm text-gray-400">
-                  Current Stake: {stakedAmount} CORE
-                </div>
+            {/* User Stakes */}
+            {userStakes.length > 0 && (
+              <div className="backdrop-blur-md bg-white/5 rounded-xl p-8 border border-white/10">
+                <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+                  <Unlock className="w-8 h-8 text-green-400" />
+                  Your Stakes
+                </h3>
 
-                <div className="grid grid-cols-2 gap-2">
-                  {[50, stakedAmount / 2].map((amount, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleUnstake(amount)}
-                      disabled={amount > stakedAmount || isUnstaking}
-                      className="bg-white/10 hover:bg-white/20 text-white py-2 px-3 rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {index === 0 ? '50 CORE' : 'Half'}
-                    </button>
+                <div className="space-y-4">
+                  {userStakes.map((stake, index) => (
+                    <div key={index} className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10">
+                      <div>
+                        <p className="text-white font-semibold">{stake.amount} tCORE2</p>
+                        <p className="text-gray-400 text-sm">
+                          Staked on {stake.stakedAt.toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => handleUnstake(stake)}
+                        disabled={isUnstaking}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Unstake
+                      </Button>
+                    </div>
                   ))}
                 </div>
+              </div>
+            )}
+          </motion.div>
 
-                <Button
-                  onClick={() => handleUnstake(stakedAmount)}
-                  disabled={stakedAmount === 0 || isUnstaking}
-                  variant="outline"
-                  className="w-full border-red-400/50 text-red-400 hover:bg-red-400/10 py-3 rounded-lg font-semibold disabled:opacity-50"
-                >
-                  {isUnstaking ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
-                      Unstaking...
+          {/* Benefits Card */}
+          <motion.div
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+            className="space-y-6"
+          >
+            <div className="backdrop-blur-md bg-white/5 rounded-xl p-8 border border-white/10">
+              <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+                <TrendingUp className="w-8 h-8 text-green-400" />
+                Staking Benefits
+              </h3>
+
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-sm font-bold">
+                      1
                     </div>
-                  ) : (
-                    'Unstake All'
-                  )}
-                </Button>
+                    <div>
+                      <h4 className="text-white font-semibold">NFT Minting Discount</h4>
+                      <p className="text-gray-400 text-sm">Get 20% off all NFT minting fees when you stake 0.1+ tCORE2</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-sm font-bold">
+                      2
+                    </div>
+                    <div>
+                      <h4 className="text-white font-semibold">Network Support</h4>
+                      <p className="text-gray-400 text-sm">Support the Core Blockchain network by staking native tCORE2 tokens</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-sm font-bold">
+                      3
+                    </div>
+                    <div>
+                      <h4 className="text-white font-semibold">Governance Rights</h4>
+                      <p className="text-gray-400 text-sm">Participate in platform governance decisions</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-blue-600/10 border border-blue-400/20 rounded-lg p-4">
+                  <h4 className="text-blue-400 font-semibold mb-2">Minimum Requirements</h4>
+                  <ul className="text-sm text-gray-300 space-y-1">
+                    <li>• Minimum stake: 0.1 tCORE2</li>
+                    <li>• Discount threshold: 0.1 tCORE2</li>
+                    <li>• Native token staking (no lock periods)</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </motion.div>

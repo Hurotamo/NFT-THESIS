@@ -1,200 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Wallet, ExternalLink, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
-
-declare global {
-  interface Window {
-    ethereum?: any;
-  }
-}
+import { useWeb3 } from "@/contexts/Web3Context";
 
 interface WalletConnectProps {
-  onConnect: (address: string) => void;
+  onConnect: () => void;
 }
 
 const WalletConnect: React.FC<WalletConnectProps> = ({ onConnect }) => {
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [isMetaMaskInstalled, setIsMetaMaskInstalled] = useState(false);
-  const [isCorrectNetwork, setIsCorrectNetwork] = useState(false);
-  const [networkStatus, setNetworkStatus] = useState<'checking' | 'correct' | 'incorrect' | 'error'>('checking');
-  const { toast } = useToast();
-
-  // Updated CORE Testnet configuration with correct details
-  const CORE_TESTNET_CONFIG = {
-    chainId: '0x457', // 1111 in hex
-    chainName: 'Core Blockchain Testnet',
-    nativeCurrency: {
-      name: 'tCORE',
-      symbol: 'tCORE',
-      decimals: 18,
-    },
-    rpcUrls: ['https://rpc.test.btcs.network'],
-    blockExplorerUrls: ['https://scan.test.btcs.network'],
-  };
-
-  useEffect(() => {
-    checkMetaMaskInstalled();
-    if (window.ethereum) {
-      checkNetwork();
-      // Listen for network changes
-      window.ethereum.on('chainChanged', checkNetwork);
-      window.ethereum.on('accountsChanged', handleAccountsChanged);
-    }
-
-    return () => {
-      if (window.ethereum) {
-        window.ethereum.removeListener('chainChanged', checkNetwork);
-        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-      }
-    };
-  }, []);
-
-  const checkMetaMaskInstalled = () => {
-    const installed = typeof window.ethereum !== 'undefined';
-    setIsMetaMaskInstalled(installed);
-    if (!installed) {
-      setNetworkStatus('error');
-    }
-  };
-
-  const checkNetwork = async () => {
-    if (!window.ethereum) {
-      setNetworkStatus('error');
-      return;
-    }
-    
-    setNetworkStatus('checking');
-    
-    try {
-      const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-      const isCorrect = chainId === CORE_TESTNET_CONFIG.chainId;
-      setIsCorrectNetwork(isCorrect);
-      setNetworkStatus(isCorrect ? 'correct' : 'incorrect');
-    } catch (error) {
-      console.error('Error checking network:', error);
-      setNetworkStatus('error');
-      setIsCorrectNetwork(false);
-    }
-  };
-
-  const handleAccountsChanged = (accounts: string[]) => {
-    if (accounts.length === 0) {
-      onConnect('');
-      setNetworkStatus('checking');
-      toast({
-        title: "Wallet Disconnected",
-        description: "Your wallet has been disconnected",
-        variant: "destructive",
-      });
-    } else {
-      // Re-check network when account changes
-      checkNetwork();
-    }
-  };
-
-  const addCoreTestnetToMetaMask = async () => {
-    try {
-      await window.ethereum.request({
-        method: 'wallet_addEthereumChain',
-        params: [CORE_TESTNET_CONFIG],
-      });
-      
-      toast({
-        title: "Network Added",
-        description: "CORE Testnet has been added to MetaMask",
-      });
-      
-      // Check network status after adding
-      setTimeout(checkNetwork, 1000);
-      return true;
-    } catch (error: any) {
-      console.error('Failed to add Core Testnet:', error);
-      toast({
-        title: "Network Error",
-        description: error.message || "Failed to add CORE Testnet to MetaMask",
-        variant: "destructive",
-      });
-      return false;
-    }
-  };
-
-  const switchToTestnet = async () => {
-    try {
-      await window.ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: CORE_TESTNET_CONFIG.chainId }],
-      });
-      
-      toast({
-        title: "Network Switched",
-        description: "Successfully switched to CORE Testnet",
-      });
-      
-      // Check network status after switching
-      setTimeout(checkNetwork, 1000);
-      return true;
-    } catch (error: any) {
-      if (error.code === 4902) {
-        // Network not added yet, add it
-        return await addCoreTestnetToMetaMask();
-      }
-      console.error('Failed to switch to Core Testnet:', error);
-      toast({
-        title: "Switch Failed",
-        description: error.message || "Failed to switch to CORE Testnet",
-        variant: "destructive",
-      });
-      return false;
-    }
-  };
-
-  const connectWallet = async () => {
-    if (!isMetaMaskInstalled) {
-      toast({
-        title: "MetaMask Required",
-        description: "Please install MetaMask to connect your wallet",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsConnecting(true);
-
-    try {
-      // First, switch to Core Testnet if not already connected
-      if (!isCorrectNetwork) {
-        const networkSwitched = await switchToTestnet();
-        if (!networkSwitched) {
-          setIsConnecting(false);
-          return;
-        }
-      }
-
-      // Request account access
-      const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts',
-      });
-
-      if (accounts.length > 0) {
-        onConnect(accounts[0]);
-        toast({
-          title: "Wallet Connected",
-          description: "Successfully connected to CORE Testnet",
-        });
-      }
-    } catch (error: any) {
-      console.error('Failed to connect wallet:', error);
-      toast({
-        title: "Connection Failed",
-        description: error.message || "Failed to connect wallet. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsConnecting(false);
-    }
-  };
+  const { 
+    isConnected, 
+    isCorrectNetwork, 
+    networkStatus, 
+    connectWallet 
+  } = useWeb3();
 
   const getNetworkStatusIcon = () => {
     switch (networkStatus) {
@@ -226,7 +46,12 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ onConnect }) => {
     }
   };
 
-  if (!isMetaMaskInstalled) {
+  const handleConnect = async () => {
+    await connectWallet();
+    onConnect();
+  };
+
+  if (typeof window.ethereum === 'undefined') {
     return (
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
@@ -291,15 +116,15 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ onConnect }) => {
       
       {/* Connect Button */}
       <Button
-        onClick={connectWallet}
-        disabled={isConnecting}
+        onClick={handleConnect}
+        disabled={isConnected}
         size="lg"
         className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-4 rounded-lg font-semibold text-lg transform transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center gap-3 mx-auto min-w-[280px]"
       >
-        {isConnecting ? (
+        {isConnected ? (
           <>
-            <Loader2 className="w-6 h-6 animate-spin" />
-            Connecting...
+            <CheckCircle className="w-6 h-6" />
+            Wallet Connected
           </>
         ) : (
           <>

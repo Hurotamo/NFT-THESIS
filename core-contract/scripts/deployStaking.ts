@@ -6,8 +6,9 @@ async function main() {
   console.log("Deploying Staking contract with the account:", deployer.address);
 
   const Staking = await ethers.getContractFactory("Staking");
-  // Deploying with address(0) for native token staking
-  const staking = await Staking.deploy(ethers.ZeroAddress, deployer.address);
+
+  // Deploying with deployer as initial admin (tCORE2 is native token)
+  const staking = await Staking.deploy(deployer.address);
 
   await staking.waitForDeployment();
 
