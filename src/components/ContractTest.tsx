@@ -117,10 +117,10 @@ const ContractTest: React.FC = () => {
       setUserStakes(userStakesResult);
       setDebugInfo(prev => prev + `✅ User stakes: ${userStakesResult.length} positions\n`);
 
-      // Test 4: Try a small stake (0.1 CORE for testing)
-      setDebugInfo(prev => prev + 'Testing stakeTokens (0.1 CORE)...\n');
-      const stakeResult = await stakeTokens(0.1, 30);
-      setDebugInfo(prev => prev + `✅ Staking successful! Position created\n`);
+      // Test 4: Try a small stake (3 CORE for testing)
+      setDebugInfo(prev => prev + 'Testing stakeTokens (3 CORE)...\\n');
+      const stakeResult = await stakeTokens(3);
+      setDebugInfo(prev => prev + `✅ Staking successful! Position created\\n`);
 
       toast({
         title: "Staking Test Complete",
@@ -158,9 +158,9 @@ const ContractTest: React.FC = () => {
       const stakingService = StakingService.getInstance();
       await stakingService.setWalletAddress(currentAccount);
 
-      setDebugInfo(prev => prev + 'Attempting to stake 0.1 CORE directly...\n');
+      setDebugInfo(prev => prev + 'Attempting to stake 3 CORE directly...\\n');
       
-      const result = await stakingService.stakeTokens(0.1, 30);
+      const result = await stakingService.stakeTokens(3);
       
       setDebugInfo(prev => prev + `✅ Direct staking successful! Amount: ${result.amount} CORE\n`);
       

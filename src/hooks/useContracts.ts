@@ -101,8 +101,7 @@ export const useContracts = () => {
 
   // Staking Contract Operations
   const stakeTokens = useCallback(async (
-    amount: number,
-    lockPeriod: number
+    amount: number
   ): Promise<StakePosition | null> => {
     if (!isConnected || !currentAccount) {
       toast({
@@ -117,11 +116,11 @@ export const useContracts = () => {
       const stakingService = StakingService.getInstance();
       await stakingService.setWalletAddress(currentAccount);
       
-      const position = await stakingService.stakeTokens(amount, lockPeriod);
+      const position = await stakingService.stakeTokens(amount);
       
       toast({
         title: "Staking Successful",
-        description: `Staked ${amount} CORE tokens for ${lockPeriod} days`,
+        description: `Staked ${amount} tCORE2 tokens for 30 days`,
       });
       
       return position;
@@ -137,9 +136,7 @@ export const useContracts = () => {
     }
   }, [isConnected, currentAccount, toast]);
 
-  const unstakeTokens = useCallback(async (
-    amount: number
-  ): Promise<{ amount: number; rewards: number } | null> => {
+  const unstakeTokens = useCallback(async (): Promise<{ amount: number } | null> => {
     if (!isConnected || !currentAccount) {
       toast({
         title: "Wallet Not Connected",
@@ -153,11 +150,11 @@ export const useContracts = () => {
       const stakingService = StakingService.getInstance();
       await stakingService.setWalletAddress(currentAccount);
       
-      const result = await stakingService.unstakeTokens(amount);
+      const result = await stakingService.unstakeTokens();
       
       toast({
         title: "Unstaking Successful",
-        description: `Unstaked ${result.amount} CORE tokens with ${result.rewards} rewards`,
+        description: `Unstaked ${result.amount} tCORE2 tokens`,
       });
       
       return result;

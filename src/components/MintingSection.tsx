@@ -26,7 +26,7 @@ const MintingSection: React.FC<MintingSectionProps> = ({ walletAddress }) => {
   } = useRealTimeUpdates();
 
   const stakedAmount = 150; // Mock staked amount
-  const hasDiscount = stakedAmount >= 100;
+  const hasDiscount = stakedAmount >= 3; // 3 tCORE2 minimum for discount
   const baseFee = 0.05; // 0.05 CORE per NFT
   const discountRate = 0.2; // 20%
   const finalFee = hasDiscount ? baseFee * (1 - discountRate) : baseFee;
