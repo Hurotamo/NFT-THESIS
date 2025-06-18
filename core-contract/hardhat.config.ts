@@ -12,15 +12,13 @@ const config: HardhatUserConfig = {
   paths: {
     tests: "./test"
   },
-  networks: {
+  networks: PRIVATE_KEY ? {
     core_testnet: {
-      accounts: [
-        PRIVATE_KEY as string
-      ],
+      accounts: [PRIVATE_KEY],
       url: 'https://rpc.test2.btcs.network',
       chainId: 1114
     },
-  }
+  } : {},
 };
 
 export default config;
