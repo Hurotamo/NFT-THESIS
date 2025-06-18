@@ -362,9 +362,8 @@ contract ThesisAuction is Ownable, ReentrancyGuard, Pausable {
     /// @dev Handles the receipt of an NFT.
     /// @param from The address which sent the NFT.
     /// @param tokenId The NFT token ID which was received.
-    /// @param data Additional data with no specified format.
     /// @return The selector to confirm token receipt.
-    function onERC721Received(address, address from, uint256 tokenId, bytes calldata data) external whenNotPaused returns (bytes4) {
+    function onERC721Received(address /*operator*/, address from, uint256 tokenId, bytes calldata /*data*/) external whenNotPaused returns (bytes4) {
         require(msg.sender == address(thesisNFT), "Unrecognized NFT");
         require(!isDeposited[tokenId], "Already deposited");
         require(authorizedDepositors[from], "Unauthorized depositor");

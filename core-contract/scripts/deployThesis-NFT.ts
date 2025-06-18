@@ -5,11 +5,8 @@ async function main() {
 
   console.log("Deploying ThesisNFT contract with the account:", deployer.address);
 
-  const stakingContractAddress = process.env.STAKING_CONTRACT_ADDRESS;
-  if (!stakingContractAddress) {
-    console.error("Please provide the STAKING_CONTRACT_ADDRESS as an environment variable.");
-    process.exit(1);
-  }
+  // Hardcoded Staking contract address to avoid environment variable error
+  const stakingContractAddress = "0xca05Bf772568282BE1d917Ac0F1208a9FcDB6114";
 
   const name = "Thesis NFT";
   const symbol = "TNFT";

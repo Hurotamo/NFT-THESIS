@@ -1,232 +1,135 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
-import "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Wrapper.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract Staking is ReentrancyGuard, AccessControlEnumerable {
-    using SafeERC20 for IERC20;
-    using Checkpoints for Checkpoints.Trace224;
- 
-    event Staked(address indexed user, uint256 amount);
+/// @title Staking Contract for NFT Discount
+/// @author
+/// @notice This contract manages tCORE2 staking for NFT minting discounts with 30-day lock period.
+/// @dev Implements ReentrancyGuard and Ownable for security and basic control.
+contract Staking is ReentrancyGuard, Ownable {
+    /// @dev Emitted when a user stakes tCORE2 tokens.
+    event Staked(address indexed user, uint256 amount, uint256 unlockTime);
+    /// @dev Emitted when a user unstakes tCORE2 tokens.
     event Unstaked(address indexed user, uint256 amount);
+    /// @dev Emitted when discount parameters are updated.
     event DiscountParamsUpdated(uint256 newMinimum, uint256 newPercent);
-    event UserBlacklisted(address indexed user, bool status);
-    event StakeBlockDelayUpdated(uint256 newDelay);
-    event AllowedContractUpdated(address indexed contractAddress, bool status);
-    event ERC20Recovered(address indexed tokenAddress, uint256 amount);
 
+    /// @dev Struct to store user staking information.
     struct StakeInfo {
-        Checkpoints.Trace224 stakeHistory;
-        uint256 lastStakeBlock;
+        /// @dev Amount of tCORE2 tokens staked.
+        uint256 amount;
+        /// @dev Timestamp when the stake can be unlocked.
+        uint256 unlockTime;
+        /// @dev Whether the user has staked.
+        bool hasStaked;
     }
 
-    // Ownership metadata (EIP-173)
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    // Timelock events
-    event ParameterQueued(bytes32 indexed paramName, uint256 executionTime, uint256 newValue);
-    event ParameterExecuted(bytes32 indexed paramName, uint256 executedValue);
-
-    // Core state
-    IERC20 public coreToken;
-    uint256 public constant TIMELOCK_DURATION = 2 days;
-
-    // Parameter timelock storage
-    struct TimelockData {
-        uint256 newValue;
-        uint256 executionTime;
-    }
-
-    TimelockData private _minimumStakeTimelock;
-    TimelockData private _discountPercentTimelock;
-    TimelockData private _stakeBlockDelayTimelock;
-
-    // Configuration
-    uint256 public minimumStake = 100 * 10**18;
+    /// @dev Minimum stake amount required for discount eligibility (3 tCORE2).
+    uint256 public minimumStake = 3 * 10**18;
+    /// @dev Discount percentage given to eligible stakers (20%).
     uint256 public discountPercent = 20;
-    uint256 public constant MAX_DISCOUNT = 100;
-    uint256 public stakeBlockDelay = 1;
+    /// @dev Lock period for staked tokens (30 days).
+    uint256 public constant LOCK_PERIOD = 30 days;
 
-    // State mappings
+    /// @dev Mapping to store staking information for each user.
     mapping(address => StakeInfo) public stakes;
-    mapping(address => bool) public isBlacklisted;
-    mapping(address => bool) public allowedContracts;
 
-    // Roles
-    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    /// @dev Constructor to initialize the contract with an owner.
+    /// @param initialOwner The initial owner address.
+    constructor(address initialOwner) Ownable(initialOwner) {}
 
-    // Permit signature data
-    struct Permit {
-        uint256 deadline;
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
+    /// @dev Allows users to stake tCORE2 tokens for NFT discount.
+    /// @notice Staked tokens will be locked for 30 days.
+    function stake() external payable nonReentrant {
+        require(msg.value >= minimumStake, "Insufficient stake amount");
+        require(!stakes[msg.sender].hasStaked, "Already staked");
+
+        stakes[msg.sender] = StakeInfo({
+            amount: msg.value,
+            unlockTime: block.timestamp + LOCK_PERIOD,
+            hasStaked: true
+        });
+
+        emit Staked(msg.sender, msg.value, block.timestamp + LOCK_PERIOD);
     }
 
-    constructor(address coreTokenAddress, address initialAdmin) {
+    /// @dev Allows users to unstake tCORE2 tokens after lock period expires.
+    function unstake() external nonReentrant {
+        StakeInfo storage userStake = stakes[msg.sender];
+        require(userStake.hasStaked, "No stake found");
+        require(block.timestamp >= userStake.unlockTime, "Stake still locked");
+
+        uint256 amount = userStake.amount;
         
-        _grantRole(DEFAULT_ADMIN_ROLE, initialAdmin);
-        _grantRole(ADMIN_ROLE, initialAdmin);
-        if (coreTokenAddress != address(0)) {
-            coreToken = IERC20(coreTokenAddress);
-        }
-    }
+        // Reset user stake info
+        delete stakes[msg.sender];
 
-    // EIP-173 compliance
-    function owner() public view returns (address) {
-        return getRoleMember(DEFAULT_ADMIN_ROLE, 0);
-    }
-
-    function transferOwnership(address newOwner) external onlyRole(ADMIN_ROLE) {
-        require(newOwner != address(0), "Invalid owner");
-        address oldOwner = owner();
-        _revokeRole(DEFAULT_ADMIN_ROLE, oldOwner);
-        _grantRole(DEFAULT_ADMIN_ROLE, newOwner);
-        emit OwnershipTransferred(oldOwner, newOwner);
-    }
-
-    // Gasless staking with permit
-    function stake(uint256 amount, Permit calldata permit) external payable nonReentrant {
-        require(!isBlacklisted[msg.sender], "User blacklisted");
-        require(amount > 0, "Amount must be > 0");
-
-        // Allow EOAs or whitelisted contracts
-        require(
-            msg.sender == tx.origin || allowedContracts[msg.sender],
-            "Flash loans not allowed"
-        );
-
-        StakeInfo storage userStake = stakes[msg.sender];
-
-        if (address(coreToken) == address(0)) {
-            // Native token staking
-            require(msg.value == amount, "Incorrect native token amount sent");
-            userStake.stakeHistory.push(uint32(block.number), uint224(userStake.stakeHistory.latest() + amount));
-            userStake.lastStakeBlock = block.number;
-            emit Staked(msg.sender, amount);
-            return;
-        }
-
-        // Handle permit if provided
-        if (msg.sender == tx.origin && permit.deadline > 0) {
-            IERC20Permit(address(coreToken)).permit(
-                msg.sender,
-                address(this),
-                amount,
-                permit.deadline,
-                permit.v,
-                permit.r,
-                permit.s
-            );
-        }
-
-        uint256 balanceBefore = coreToken.balanceOf(address(this));
-        coreToken.safeTransferFrom(msg.sender, address(this), amount);
-        uint256 received = coreToken.balanceOf(address(this)) - balanceBefore;
-        require(received > 0, "No tokens received");
-
-        userStake.stakeHistory.push(uint32(block.number), uint224(userStake.stakeHistory.latest() + received));
-        userStake.lastStakeBlock = block.number;
-
-        emit Staked(msg.sender, received);
-    }
-
-    // Timelocked parameter updates
-    function queueMinimumStake(uint256 newMinimum) external onlyRole(ADMIN_ROLE) {
-        require(newMinimum > 0, "Minimum must be > 0");
-        _minimumStakeTimelock = TimelockData(newMinimum, block.timestamp + TIMELOCK_DURATION);
-        emit ParameterQueued(keccak256("minimumStake"), _minimumStakeTimelock.executionTime, newMinimum);
-    }
-
-    function queueDiscountPercent(uint256 newPercent) external onlyRole(ADMIN_ROLE) {
-        require(newPercent <= MAX_DISCOUNT, "Invalid discount");
-        _discountPercentTimelock = TimelockData(newPercent, block.timestamp + TIMELOCK_DURATION);
-        emit ParameterQueued(keccak256("discountPercent"), _discountPercentTimelock.executionTime, newPercent);
-    }
-
-    function queueStakeBlockDelay(uint256 newDelay) external onlyRole(ADMIN_ROLE) {
-        require(newDelay >= 1, "Delay must be > 0");
-        _stakeBlockDelayTimelock = TimelockData(newDelay, block.timestamp + TIMELOCK_DURATION);
-        emit ParameterQueued(keccak256("stakeBlockDelay"), _stakeBlockDelayTimelock.executionTime, newDelay);
-    }
-
-    function executeQueuedChanges() external nonReentrant {
-        if (block.timestamp >= _minimumStakeTimelock.executionTime && _minimumStakeTimelock.newValue != 0) {
-            minimumStake = _minimumStakeTimelock.newValue;
-            emit ParameterExecuted(keccak256("minimumStake"), minimumStake);
-            _minimumStakeTimelock.newValue = 0;
-        }
-
-        if (block.timestamp >= _discountPercentTimelock.executionTime && _discountPercentTimelock.newValue != 0) {
-            discountPercent = _discountPercentTimelock.newValue;
-            emit ParameterExecuted(keccak256("discountPercent"), discountPercent);
-            _discountPercentTimelock.newValue = 0;
-        }
-
-        if (block.timestamp >= _stakeBlockDelayTimelock.executionTime && _stakeBlockDelayTimelock.newValue != 0) {
-            stakeBlockDelay = _stakeBlockDelayTimelock.newValue;
-            emit ParameterExecuted(keccak256("stakeBlockDelay"), stakeBlockDelay);
-            _stakeBlockDelayTimelock.newValue = 0;
-        }
-    }
-
-    // Enhanced unstake with fee handling
-    function unstake(uint256 amount) external nonReentrant {
-        require(!isBlacklisted[msg.sender], "User blacklisted");
-        require(amount > 0, "Amount must be > 0");
-
-        StakeInfo storage userStake = stakes[msg.sender];
-        uint256 currentAmount = userStake.stakeHistory.latest();
-        require(currentAmount >= amount, "Insufficient stake");
-        require(block.number > userStake.lastStakeBlock + stakeBlockDelay, "Stake locked");
-
-        if (address(coreToken) == address(0)) {
-            // Native token unstaking
-            payable(msg.sender).transfer(amount);
-            uint256 newAmount = currentAmount - amount;
-            userStake.stakeHistory.push(uint32(block.number), uint224(newAmount));
-            userStake.lastStakeBlock = block.number;
-            emit Unstaked(msg.sender, amount);
-            return;
-        }
-
-        coreToken.safeTransfer(msg.sender, amount);
-       
-        userStake.stakeHistory.push(uint32(block.number), uint224(currentAmount - amount));
-        userStake.lastStakeBlock = block.number;
+        // Transfer tCORE2 tokens back to user
+        payable(msg.sender).transfer(amount);
 
         emit Unstaked(msg.sender, amount);
     }
 
+    /// @dev Returns the discount percentage for a given user based on their stake.
+    /// @param user The address of the user to check.
+    /// @return The discount percentage (20% if eligible, 0% otherwise).
     function getDiscountPercentage(address user) external view returns (uint256) {
-        if (isBlacklisted[user]) return 0;
-        return userStakeHistoryLatest(user) >= minimumStake ? discountPercent : 0;
+        StakeInfo storage userStake = stakes[user];
+        if (!userStake.hasStaked || userStake.amount < minimumStake) {
+            return 0;
+        }
+        return discountPercent;
     }
 
-    // Helper for latest stake amount
-    function userStakeHistoryLatest(address user) public view returns (uint256) {
-        return stakes[user].stakeHistory.latest();
+    /// @dev Returns the current stake amount for a given user.
+    /// @param user The address of the user to check.
+    /// @return The current stake amount for the user.
+    function getUserStakeAmount(address user) external view returns (uint256) {
+        return stakes[user].amount;
     }
 
-    function setAllowedContract(address contractAddress, bool status) external onlyRole(ADMIN_ROLE) {
-        allowedContracts[contractAddress] = status;
-        emit AllowedContractUpdated(contractAddress, status);
+    /// @dev Returns the unlock time for a given user's stake.
+    /// @param user The address of the user to check.
+    /// @return The timestamp when the user can unstake.
+    function getUserUnlockTime(address user) external view returns (uint256) {
+        return stakes[user].unlockTime;
     }
 
-    function blacklistUser(address user, bool status) external onlyRole(ADMIN_ROLE) {
-        isBlacklisted[user] = status;
-        emit UserBlacklisted(user, status);
+    /// @dev Checks if a user has staked and is eligible for discount.
+    /// @param user The address of the user to check.
+    /// @return True if the user has staked and is eligible for discount.
+    function isEligibleForDiscount(address user) external view returns (bool) {
+        StakeInfo storage userStake = stakes[user];
+        return userStake.hasStaked && userStake.amount >= minimumStake;
     }
 
-    function recoverERC20(address tokenAddress, uint256 amount) external onlyRole(ADMIN_ROLE) nonReentrant {
-        require(tokenAddress != address(coreToken), "Cannot recover staking token");
-        IERC20(tokenAddress).safeTransfer(getRoleMember(DEFAULT_ADMIN_ROLE, 0), amount);
-        emit ERC20Recovered(tokenAddress, amount);
+    /// @dev Allows the owner to update the minimum stake amount.
+    /// @param newMinimum The new minimum stake amount in wei.
+    function setMinimumStake(uint256 newMinimum) external onlyOwner {
+        require(newMinimum > 0, "Minimum must be > 0");
+        minimumStake = newMinimum;
+        emit DiscountParamsUpdated(newMinimum, discountPercent);
+    }
+
+    /// @dev Allows the owner to update the discount percentage.
+    /// @param newPercent The new discount percentage (0-100).
+    function setDiscountPercent(uint256 newPercent) external onlyOwner {
+        require(newPercent <= 100, "Invalid discount percentage");
+        discountPercent = newPercent;
+        emit DiscountParamsUpdated(minimumStake, newPercent);
+    }
+
+    /// @dev Allows the owner to withdraw accumulated fees (if any).
+    function withdrawFees() external onlyOwner {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "No fees to withdraw");
+        payable(owner()).transfer(balance);
+    }
+
+    /// @dev Receive function to accept tCORE2 tokens.
+    receive() external payable {
+        // This allows the contract to receive tCORE2 tokens
     }
 }

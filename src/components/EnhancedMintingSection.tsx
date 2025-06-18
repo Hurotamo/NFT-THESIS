@@ -1,12 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Upload, FileText, Coins, CheckCircle, AlertCircle, User, Calendar, BookOpen, Activity, TrendingUp, Lock, Eye, EyeOff } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useRealTimeUpdates } from '../hooks/useRealTimeUpdates';
-import { NFTContractService } from '../services/nftContractService';
-import { StakingService } from '../services/stakingService';
+import { useContracts } from '../hooks/useContracts';
+import { NFTMetadata } from '../services/nftContractService';
 
 interface EnhancedMintingSectionProps {
   walletAddress: string;
@@ -16,6 +15,7 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
   const [selectedThesis, setSelectedThesis] = useState<any | null>(null);
   const [isMinting, setIsMinting] = useState(false);
   const { toast } = useToast();
+  const { mintNFT, getUserNFTs, getTotalStaked, hasDiscountEligibility } = useContracts();
   
   const { 
     theses, 
@@ -25,41 +25,41 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
     lastUpdate 
   } = useRealTimeUpdates();
 
-  const nftService = NFTContractService.getInstance();
-  const stakingService = StakingService.getInstance();
-
   const [userMintedNFTs, setUserMintedNFTs] = useState<any[]>([]);
   const [totalStaked, setTotalStaked] = useState(0);
   const [hasDiscount, setHasDiscount] = useState(false);
 
   useEffect(() => {
-    if (walletAddress) {
-      const staked = stakingService.getTotalStaked(walletAddress);
-      setTotalStaked(staked);
-      setHasDiscount(stakingService.hasDiscountEligibility(walletAddress));
-      setUserMintedNFTs(nftService.getUserMintedNFTs(walletAddress));
-    }
-  }, [walletAddress]);
+    const loadUserData = async () => {
+      if (walletAddress) {
+        try {
+          const [staked, discount, nfts] = await Promise.all([
+            getTotalStaked(),
+            hasDiscountEligibility(),
+            getUserNFTs()
+          ]);
+          
+          setTotalStaked(staked);
+          setHasDiscount(discount);
+          setUserMintedNFTs(nfts);
+        } catch (error) {
+          console.error('Failed to load user data:', error);
+        }
+      }
+    };
+
+    loadUserData();
+  }, [walletAddress, getTotalStaked, hasDiscountEligibility, getUserNFTs]);
 
   const baseFee = 0.05; // 0.05 CORE per NFT
   const platformFeePercentage = 5; // 5% platform fee
-  const discountRate = hasDiscount ? stakingService.getDiscountPercentage(walletAddress) / 100 : 0;
+  const discountRate = hasDiscount ? 0.2 : 0; // 20% discount for stakers
   const finalFee = baseFee * (1 - discountRate);
   const platformFee = finalFee * (platformFeePercentage / 100);
   const authorRoyalty = finalFee * 0.1; // 10% to author
 
   const handleThesisSelect = (thesis: any) => {
     setSelectedThesis(thesis);
-    
-    // Set NFT config for this thesis
-    nftService.setNFTConfig(thesis.id, {
-      maxSupply: thesis.maxNFTs || 100,
-      platformFeePercentage: 5,
-      authorRoyaltyPercentage: 10,
-      mintPrice: finalFee,
-      isBlurred: true,
-      introOnly: true
-    });
 
     toast({
       title: "Thesis Selected",
@@ -68,7 +68,8 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
   };
 
   const canUserMintThesis = (thesisId: string): boolean => {
-    return nftService.canUserMint(walletAddress, thesisId);
+    // Check if user has already minted this thesis
+    return !userMintedNFTs.some(nft => nft.thesisId === thesisId);
   };
 
   const handleMint = async () => {
@@ -93,32 +94,32 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
     setIsMinting(true);
 
     try {
-      const mintedNFT = await nftService.mintNFT(
-        selectedThesis.id,
-        walletAddress,
-        {
-          title: selectedThesis.title,
-          author: selectedThesis.author,
-          university: selectedThesis.university,
-          year: selectedThesis.year,
-          field: selectedThesis.field,
-          description: selectedThesis.description,
-          ipfsHash: selectedThesis.ipfsHash || 'mock_hash',
-          tags: selectedThesis.tags || []
-        },
-        totalStaked
-      );
+      const metadata: NFTMetadata = {
+        title: selectedThesis.title,
+        author: selectedThesis.author,
+        university: selectedThesis.university,
+        year: selectedThesis.year,
+        field: selectedThesis.field,
+        description: selectedThesis.description,
+        ipfsHash: selectedThesis.ipfsHash || 'mock_hash',
+        tags: selectedThesis.tags || []
+      };
+
+      const mintedNFT = await mintNFT(selectedThesis.id, metadata, totalStaked);
       
-      // Refresh data
-      refreshData();
-      setUserMintedNFTs(nftService.getUserMintedNFTs(walletAddress));
-      
-      toast({
-        title: "NFT Minted Successfully!",
-        description: `NFT minted for "${selectedThesis.title}" at ${finalFee.toFixed(4)} CORE. NFT is blurred until auction completion.`,
-      });
-      
-      setSelectedThesis(null);
+      if (mintedNFT) {
+        // Refresh data
+        refreshData();
+        const updatedNFTs = await getUserNFTs();
+        setUserMintedNFTs(updatedNFTs);
+        
+        toast({
+          title: "NFT Minted Successfully!",
+          description: `NFT minted for "${selectedThesis.title}" at ${finalFee.toFixed(4)} CORE. NFT is blurred until auction completion.`,
+        });
+        
+        setSelectedThesis(null);
+      }
     } catch (error: any) {
       toast({
         title: "Minting Failed",
@@ -201,252 +202,144 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
               <p className="text-sm text-gray-400">Your NFTs</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-yellow-400">{finalFee.toFixed(4)} CORE</p>
+              <p className="text-2xl font-bold text-blue-400">{totalStaked.toFixed(2)}</p>
+              <p className="text-sm text-gray-400">Staked CORE</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-purple-400">{hasDiscount ? '20%' : '0%'}</p>
+              <p className="text-sm text-gray-400">Discount</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-yellow-400">{finalFee.toFixed(4)}</p>
               <p className="text-sm text-gray-400">Mint Price</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-purple-400">{hasDiscount ? `${stakingService.getDiscountPercentage(walletAddress)}%` : '0%'}</p>
-              <p className="text-sm text-gray-400">Your Discount</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-blue-400">{totalStaked.toFixed(0)}</p>
-              <p className="text-sm text-gray-400">CORE Staked</p>
             </div>
           </div>
         </motion.div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Available Theses with Enhanced Info */}
+        {/* Thesis Selection */}
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* Available Theses */}
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-            className="lg:col-span-2 backdrop-blur-md bg-white/5 rounded-xl p-6 border border-white/10"
+            className="space-y-4"
           >
-            <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
-              <BookOpen className="w-8 h-8 text-blue-400" />
-              Available Theses ({theses.length})
-            </h3>
-
-            {theses.length === 0 ? (
-              <div className="text-center py-12">
-                <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-400 text-lg">No theses available for minting yet.</p>
-              </div>
-            ) : (
-              <div className="space-y-4 max-h-96 overflow-y-auto">
-                {theses.map((thesis) => {
-                  const mintCount = mintCounts[thesis.id] || 0;
-                  const maxNFTs = thesis.maxNFTs || 100;
-                  const userCanMint = canUserMintThesis(thesis.id);
-                  const isSelected = selectedThesis?.id === thesis.id;
-                  
-                  return (
-                    <motion.div
-                      key={thesis.id}
-                      whileHover={{ scale: 1.02 }}
-                      onClick={() => userCanMint && handleThesisSelect(thesis)}
-                      className={`p-4 rounded-lg border cursor-pointer transition-all relative ${
-                        isSelected
-                          ? 'bg-blue-600/20 border-blue-400'
-                          : userCanMint
-                          ? 'bg-white/5 border-white/10 hover:bg-white/10'
-                          : 'bg-gray-600/20 border-gray-400/20 cursor-not-allowed opacity-60'
-                      }`}
-                    >
-                      {/* NFT Supply Info */}
-                      <div className="absolute top-2 right-2 flex gap-2">
-                        <div className="bg-blue-500/20 text-blue-300 text-xs px-2 py-1 rounded-full">
-                          {mintCount}/{maxNFTs} minted
-                        </div>
-                        {!userCanMint && (
-                          <div className="bg-red-500/20 text-red-300 text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                            <Lock className="w-3 h-3" />
-                            Already minted
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 pr-20">
-                          <h4 className="text-white font-semibold text-lg mb-2">{thesis.title}</h4>
-                          <div className="flex items-center gap-4 text-sm text-gray-400 mb-2">
-                            <span className="flex items-center gap-1">
-                              <User className="w-4 h-4" />
-                              {thesis.author}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-4 h-4" />
-                              {thesis.year}
-                            </span>
-                          </div>
-                          <p className="text-gray-300 text-sm mb-2">{thesis.university} • {thesis.field}</p>
-                          {thesis.description && (
-                            <p className="text-gray-400 text-sm line-clamp-2">{thesis.description}</p>
-                          )}
-                        </div>
-                        
-                        {isSelected && (
-                          <CheckCircle className="w-6 h-6 text-blue-400 mt-4" />
-                        )}
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
-          </motion.div>
-
-          {/* Enhanced Minting Panel */}
-          <motion.div
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4 }}
-            className="backdrop-blur-md bg-white/5 rounded-xl p-6 border border-white/10"
-          >
-            <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
-              <Coins className="w-8 h-8 text-purple-400" />
-              Enhanced Minting
-            </h3>
-
-            <div className="space-y-6">
-              {/* Staking Discount Status */}
-              {hasDiscount && (
+            <h3 className="text-2xl font-bold text-white mb-4">Available Theses</h3>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {theses.map((thesis: any) => (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-green-600/20 border border-green-400/30 rounded-lg p-4"
+                  key={thesis.id}
+                  whileHover={{ scale: 1.02 }}
+                  className={`backdrop-blur-md rounded-lg p-4 border cursor-pointer transition-all duration-200 ${
+                    selectedThesis?.id === thesis.id
+                      ? 'bg-blue-600/20 border-blue-400/50'
+                      : 'bg-white/5 border-white/10 hover:border-white/20'
+                  } ${!canUserMintThesis(thesis.id) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={() => canUserMintThesis(thesis.id) && handleThesisSelect(thesis)}
                 >
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="w-6 h-6 text-green-400" />
-                    <div>
-                      <p className="text-green-400 font-semibold">{stakingService.getDiscountPercentage(walletAddress)}% Discount Applied!</p>
-                      <p className="text-sm text-green-300">
-                        You've staked {totalStaked.toFixed(0)} CORE tokens
-                      </p>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-white mb-1">{thesis.title}</h4>
+                      <p className="text-sm text-gray-400 mb-2">{thesis.author}</p>
+                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <BookOpen className="w-3 h-3" />
+                          {thesis.field}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {thesis.year}
+                        </span>
+                      </div>
                     </div>
+                    {!canUserMintThesis(thesis.id) && (
+                      <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+                    )}
                   </div>
                 </motion.div>
-              )}
-
-              {/* Selected Thesis */}
-              {selectedThesis ? (
-                <div className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 rounded-lg p-4 border border-white/20">
-                  <h4 className="text-white font-bold text-lg mb-2">Selected Thesis</h4>
-                  <p className="text-blue-300 font-semibold">{selectedThesis.title}</p>
-                  <p className="text-gray-300 text-sm">by {selectedThesis.author}</p>
-                  <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
-                    <EyeOff className="w-3 h-3 text-yellow-400" />
-                    <span>NFT will be blurred until auction completion</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-gray-600/20 rounded-lg p-4 border border-gray-400/20">
-                  <p className="text-gray-400 text-center">Select a thesis to mint</p>
-                </div>
-              )}
-
-              {/* Fee Breakdown */}
-              <div className="space-y-3">
-                <div className="flex justify-between text-gray-300">
-                  <span>Base minting fee:</span>
-                  <span>{baseFee.toFixed(4)} CORE</span>
-                </div>
-                {hasDiscount && (
-                  <div className="flex justify-between text-green-400">
-                    <span>Staking discount ({stakingService.getDiscountPercentage(walletAddress)}%):</span>
-                    <span>-{(baseFee * discountRate).toFixed(4)} CORE</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-gray-300">
-                  <span>Platform fee (5%):</span>
-                  <span>{platformFee.toFixed(4)} CORE</span>
-                </div>
-                <div className="flex justify-between text-gray-300">
-                  <span>Author royalty (10%):</span>
-                  <span>{authorRoyalty.toFixed(4)} CORE</span>
-                </div>
-                <div className="border-t border-white/10 pt-3">
-                  <div className="flex justify-between text-white font-bold text-lg">
-                    <span>Total Cost:</span>
-                    <span>{finalFee.toFixed(4)} CORE</span>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1">
-                    ≈ ${(finalFee * 1.2).toFixed(2)} USD
-                  </p>
-                </div>
-              </div>
-
-              {/* Minting Rules */}
-              <div className="bg-yellow-600/10 border border-yellow-400/30 rounded-lg p-4">
-                <h5 className="text-yellow-400 font-semibold mb-2">Minting Rules</h5>
-                <ul className="text-sm text-gray-300 space-y-1">
-                  <li>• 1 NFT per wallet per thesis</li>
-                  <li>• NFTs are blurred until auction ends</li>
-                  <li>• Only minters can participate in auctions</li>
-                  <li>• Stake 100+ CORE for discounts</li>
-                </ul>
-              </div>
-
-              {/* Mint Button */}
-              <Button
-                onClick={handleMint}
-                disabled={!selectedThesis || isMinting || !canUserMintThesis(selectedThesis?.id)}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-4 rounded-lg font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isMinting ? (
-                  <div className="flex items-center gap-3">
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Minting NFT...
-                  </div>
-                ) : !selectedThesis ? (
-                  'Select a Thesis to Mint'
-                ) : !canUserMintThesis(selectedThesis.id) ? (
-                  'Already Minted This Thesis'
-                ) : (
-                  'Mint NFT'
-                )}
-              </Button>
-
-              {selectedThesis && canUserMintThesis(selectedThesis.id) && (
-                <p className="text-xs text-gray-500 text-center">
-                  You'll receive a blurred NFT certificate. It will be revealed when you win an auction.
-                </p>
-              )}
-            </div>
-          </motion.div>
-        </div>
-
-        {/* User's Minted NFTs */}
-        {userMintedNFTs.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="mt-8 backdrop-blur-md bg-white/5 rounded-xl p-6 border border-white/10"
-          >
-            <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
-              <Coins className="w-8 h-8 text-green-400" />
-              Your Minted NFTs ({userMintedNFTs.length})
-            </h3>
-            
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {userMintedNFTs.map((nft, index) => (
-                <div key={index} className="bg-white/5 rounded-lg p-4 border border-white/10">
-                  <div className="flex items-center gap-2 mb-2">
-                    {nft.isBlurred ? <EyeOff className="w-4 h-4 text-yellow-400" /> : <Eye className="w-4 h-4 text-green-400" />}
-                    <span className="text-sm text-gray-400">
-                      {nft.isBlurred ? 'Blurred' : 'Revealed'} NFT
-                    </span>
-                  </div>
-                  <h4 className="text-white font-semibold mb-1">{nft.metadata.title}</h4>
-                  <p className="text-gray-400 text-sm">Token ID: {nft.tokenId}</p>
-                  <p className="text-gray-500 text-xs">Minted: {new Date(nft.mintedAt).toLocaleDateString()}</p>
-                </div>
               ))}
             </div>
           </motion.div>
-        )}
+
+          {/* Minting Panel */}
+          <motion.div
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="space-y-6"
+          >
+            <h3 className="text-2xl font-bold text-white mb-4">Minting Panel</h3>
+            
+            {selectedThesis ? (
+              <div className="backdrop-blur-md bg-white/5 rounded-xl p-6 border border-white/10">
+                <h4 className="text-xl font-semibold text-white mb-4">{selectedThesis.title}</h4>
+                
+                {/* Fee Breakdown */}
+                <div className="space-y-3 mb-6">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Base Fee:</span>
+                    <span className="text-white">{baseFee.toFixed(4)} CORE</span>
+                  </div>
+                  {hasDiscount && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Staking Discount (20%):</span>
+                      <span className="text-green-400">-{(baseFee * discountRate).toFixed(4)} CORE</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Platform Fee (5%):</span>
+                    <span className="text-yellow-400">{platformFee.toFixed(4)} CORE</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Author Royalty (10%):</span>
+                    <span className="text-purple-400">{authorRoyalty.toFixed(4)} CORE</span>
+                  </div>
+                  <div className="border-t border-white/20 pt-2">
+                    <div className="flex justify-between font-semibold">
+                      <span className="text-white">Total Cost:</span>
+                      <span className="text-green-400">{finalFee.toFixed(4)} CORE</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mint Button */}
+                <Button
+                  onClick={handleMint}
+                  disabled={isMinting}
+                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-3 rounded-lg font-semibold disabled:opacity-50"
+                >
+                  {isMinting ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Minting...
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Coins className="w-5 h-5" />
+                      Mint NFT
+                    </div>
+                  )}
+                </Button>
+
+                {/* Info */}
+                <div className="mt-4 p-3 bg-blue-600/10 border border-blue-400/20 rounded-lg">
+                  <div className="flex items-start gap-2 text-sm">
+                    <Lock className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-blue-400 font-medium">NFT will be blurred</p>
+                      <p className="text-gray-400">Content becomes visible after auction completion</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="backdrop-blur-md bg-white/5 rounded-xl p-8 border border-white/10 text-center">
+                <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h4 className="text-lg font-semibold text-white mb-2">Select a Thesis</h4>
+                <p className="text-gray-400">Choose a thesis from the list to start minting</p>
+              </div>
+            )}
+          </motion.div>
+        </div>
       </div>
     </div>
   );
