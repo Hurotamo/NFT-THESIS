@@ -56,6 +56,8 @@ contract ThesisNFT is ERC721, Ownable {
     event IpfsHashSet(string ipfsHash);
     /// @dev Emitted when a file is revealed for a token.
     event FileRevealed(uint256 tokenId);
+    /// @dev Emitted when an upload payment is received.
+    event UploadPayment(address indexed user, uint256 amount);
 
     /// @dev Constructor to initialize the NFT contract with basic parameters.
     /// @param name_ The name of the NFT collection.
@@ -201,6 +203,13 @@ contract ThesisNFT is ERC721, Ownable {
     /// @return True if the user has minted, false otherwise.
     function hasMinted(address user) external view returns (bool) {
         return _hasMinted[user];
+    }
+
+    /// @dev Allows users to pay for an upload.
+    function payForUpload() public payable {
+        require(msg.value > 0, "Fee required");
+        emit UploadPayment(msg.sender, msg.value);
+        // You can add more logic here if needed
     }
 }
 

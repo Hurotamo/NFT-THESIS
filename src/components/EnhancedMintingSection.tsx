@@ -12,7 +12,17 @@ interface EnhancedMintingSectionProps {
 }
 
 const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletAddress }) => {
-  const [selectedThesis, setSelectedThesis] = useState<any | null>(null);
+  const [selectedThesis, setSelectedThesis] = useState<{
+    id: string;
+    title: string;
+    author: string;
+    university: string;
+    year: number;
+    field: string;
+    description: string;
+    ipfsHash?: string;
+    tags?: string[];
+  } | null>(null);
   const [isMinting, setIsMinting] = useState(false);
   const { toast } = useToast();
   const { mintNFT, getUserNFTs, getTotalStaked, hasDiscountEligibility } = useContracts();
@@ -25,7 +35,7 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
     lastUpdate 
   } = useRealTimeUpdates();
 
-  const [userMintedNFTs, setUserMintedNFTs] = useState<any[]>([]);
+  const [userMintedNFTs, setUserMintedNFTs] = useState<Array<{ thesisId: string }>>([]);
   const [totalStaked, setTotalStaked] = useState(0);
   const [hasDiscount, setHasDiscount] = useState(false);
 
@@ -52,15 +62,24 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
   }, [walletAddress, getTotalStaked, hasDiscountEligibility, getUserNFTs]);
 
   const baseFee = 0.05; // 0.05 CORE per NFT
-  const platformFeePercentage = 5; // 5% platform fee
+  const platformFeePercentage = 20; // 20% platform fee (matches contract)
   const discountRate = hasDiscount ? 0.2 : 0; // 20% discount for stakers
-  const finalFee = baseFee * (1 - discountRate);
-  const platformFee = finalFee * (platformFeePercentage / 100);
-  const authorRoyalty = finalFee * 0.1; // 10% to author
+  const discountedFee = baseFee * (1 - discountRate);
+  const platformFee = discountedFee * (platformFeePercentage / 100);
+  const totalCost = discountedFee + platformFee;
 
-  const handleThesisSelect = (thesis: any) => {
+  const handleThesisSelect = (thesis: {
+    id: string;
+    title: string;
+    author: string;
+    university: string;
+    year: number;
+    field: string;
+    description: string;
+    ipfsHash?: string;
+    tags?: string[];
+  }) => {
     setSelectedThesis(thesis);
-
     toast({
       title: "Thesis Selected",
       description: `Selected "${thesis.title}" for minting`,
@@ -115,7 +134,7 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
         
         toast({
           title: "NFT Minted Successfully!",
-          description: `NFT minted for "${selectedThesis.title}" at ${finalFee.toFixed(4)} CORE. NFT is blurred until auction completion.`,
+          description: `NFT minted for "${selectedThesis.title}" at ${totalCost.toFixed(4)} CORE. NFT is blurred until auction completion.`,
         });
         
         setSelectedThesis(null);
@@ -210,7 +229,7 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
               <p className="text-sm text-gray-400">Discount</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-yellow-400">{finalFee.toFixed(4)}</p>
+              <p className="text-2xl font-bold text-yellow-400">{totalCost.toFixed(4)}</p>
               <p className="text-sm text-gray-400">Mint Price</p>
             </div>
           </div>
@@ -286,17 +305,13 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
                     </div>
                   )}
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Platform Fee (5%):</span>
+                    <span className="text-gray-400">Platform Fee (20%):</span>
                     <span className="text-yellow-400">{platformFee.toFixed(4)} CORE</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Author Royalty (10%):</span>
-                    <span className="text-purple-400">{authorRoyalty.toFixed(4)} CORE</span>
                   </div>
                   <div className="border-t border-white/20 pt-2">
                     <div className="flex justify-between font-semibold">
                       <span className="text-white">Total Cost:</span>
-                      <span className="text-green-400">{finalFee.toFixed(4)} CORE</span>
+                      <span className="text-green-400">{totalCost.toFixed(4)} CORE</span>
                     </div>
                   </div>
                 </div>

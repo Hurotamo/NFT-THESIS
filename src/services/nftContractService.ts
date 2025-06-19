@@ -1,4 +1,4 @@
-import Web3 from "web3";
+import { ethers } from "ethers";
 import contractAddresses from "@/config/contractAddresses";
 import ThesisNFTABI from "../../core-contract/artifacts/contracts/Thesis-NFT.sol/ThesisNFT.json";
 
@@ -33,8 +33,7 @@ export interface MintedNFT {
 
 export class NFTContractService {
   private static instance: NFTContractService;
-  private web3: Web3;
-  private contract: any;
+  private contract: ethers.Contract | null;
   private walletAddress: string | null = null;
   private mintedNFTs: Map<string, MintedNFT[]> = new Map();
   private nftConfigs: Map<string, NFTMintingConfig> = new Map();
@@ -47,16 +46,17 @@ export class NFTContractService {
     return NFTContractService.instance;
   }
 
-  constructor() {
-    this.web3 = new Web3((window as any).ethereum);
-    this.contract = new this.web3.eth.Contract(
-      ThesisNFTABI.abi,
-      contractAddresses.thesisNFT
-    );
-  }
-
-  async setWalletAddress(address: string) {
-    this.walletAddress = address;
+  async setWalletAddress(walletAddress: string) {
+    this.walletAddress = walletAddress;
+    // Set up ethers.js contract instance
+    if (window.ethereum) {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      // Import the ABI and contract address as needed
+      const ThesisNFTAbi = (await import('../../core-contract/artifacts/contracts/Thesis-NFT.sol/ThesisNFT.json')).default.abi;
+      const contractAddress = "0x660C6Bc195a5B12CF453FaCC4AbA419216C6fB24";
+      this.contract = new ethers.Contract(contractAddress, ThesisNFTAbi, signer);
+    }
   }
 
   setNFTConfig(thesisId: string, config: NFTMintingConfig): void {
@@ -85,18 +85,29 @@ export class NFTContractService {
     if (!this.walletAddress) {
       throw new Error("Wallet address not set");
     }
+    if (!this.contract) {
+      throw new Error("Contract not initialized");
+    }
+
+    // Get the mint price from the contract
+    const mintPrice = await this.contract.price();
+    // Calculate discount if applicable
+    const hasStakingDiscount = stakedAmount >= 3; // 3 tCORE2 minimum for discount
+    const discountRate = hasStakingDiscount ? 0.2 : 0;
+    const effectivePrice = mintPrice.mul(ethers.BigNumber.from(100 - discountRate * 100)).div(100);
+
+    // Add platform fee (20%)
+    const platformFee = effectivePrice.mul(20).div(100);
+    const totalPrice = effectivePrice.add(platformFee);
+
+    // Convert totalPrice to string in ether and then to WEI
+    const totalPriceInWei = ethers.utils.parseEther(ethers.utils.formatEther(totalPrice));
 
     // Call the mint function on the contract
-    const mintPrice = await this.contract.methods.mintPrice().call();
-    const hasStakingDiscount = stakedAmount >= 100;
-    const discountRate = hasStakingDiscount ? 0.2 : 0;
-    const finalMintPrice = mintPrice * (1 - discountRate);
-
-    const tx = await this.contract.methods
-      .mint(thesisId, JSON.stringify(metadata))
-      .send({ from: this.walletAddress, value: finalMintPrice });
-
-    const tokenId = tx.events.Transfer.returnValues.tokenId;
+    const tx = await this.contract.mint(1, { value: totalPriceInWei });
+    const receipt = await tx.wait();
+    const transferEvent = receipt.events.find((e: ethers.Event) => e.event === 'Transfer');
+    const tokenId = transferEvent ? transferEvent.args.tokenId.toString() : '';
 
     const mintedNFT: MintedNFT = {
       tokenId,
@@ -104,7 +115,7 @@ export class NFTContractService {
       metadata,
       isBlurred: true,
       mintedAt: new Date(),
-      transactionHash: tx.transactionHash,
+      transactionHash: tx.hash,
     };
 
     // Record the mint
@@ -123,10 +134,35 @@ export class NFTContractService {
     if (!this.walletAddress) {
       throw new Error("Wallet address not set");
     }
+    if (!this.contract) {
+      throw new Error("Contract not initialized");
+    }
 
-    // Fetch minted NFTs for the user from the contract or backend
-    // Placeholder: return empty array for now
-    return [];
+    // Fetch the number of NFTs owned by the user
+    const balance: number = (await this.contract.balanceOf(this.walletAddress)).toNumber();
+    const nfts: MintedNFT[] = [];
+    for (let i = 0; i < balance; i++) {
+      const tokenId = (await this.contract.tokenOfOwnerByIndex(this.walletAddress, i)).toString();
+      // Optionally fetch metadata from tokenURI or your backend here
+      nfts.push({
+        tokenId,
+        owner: this.walletAddress,
+        metadata: {
+          title: '',
+          author: '',
+          university: '',
+          year: 0,
+          field: '',
+          description: '',
+          ipfsHash: '',
+          tags: []
+        },
+        isBlurred: true,
+        mintedAt: new Date(),
+        transactionHash: '',
+      });
+    }
+    return nfts;
   }
 
   async unblurNFT(tokenId: string): Promise<boolean> {

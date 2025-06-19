@@ -10,10 +10,16 @@ import {
   type FileMetadata,
   type IPFSFileReference 
 } from '../utils/fileNaming';
+import DataManager from '../utils/dataManager';
+import { IPFSService } from '../services/ipfsService';
+import { ethers } from "ethers";
+import ThesisNFTAbi from '../../core-contract/artifacts/contracts/Thesis-NFT.sol/ThesisNFT.json';
 
 interface ThesisPostingProps {
   walletAddress: string;
 }
+
+const contractAddress = "0x660C6Bc195a5B12CF453FaCC4AbA419216C6fB24";
 
 const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -23,6 +29,7 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [ipfsHash, setIpfsHash] = useState<string>('');
+  const [uploadFee, setUploadFee] = useState<number | null>(null);
   const { toast } = useToast();
 
   const categories = [
@@ -57,6 +64,10 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
 
     setSelectedFile(file);
     setUploadStatus('idle');
+    // Calculate fee
+    const sizeInMB = file.size / (1024 * 1024);
+    const fee = 0.01 + (sizeInMB * 0.005); // Or use IPFSService.getInstance().getUploadFee(file.size)
+    setUploadFee(fee);
   };
 
   const simulateIPFSUpload = async (file: File): Promise<string> => {
@@ -69,6 +80,25 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
     return `Qm${timestamp.toString(36)}${fileName.slice(0, 10)}MockHash`;
   };
 
+  const handlePayForUpload = async (fee: number) => {
+    if (!window.ethereum) {
+      toast({ title: "No wallet found", description: "Please install MetaMask or another wallet.", variant: "destructive" });
+      return false;
+    }
+    try {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      const contract = new ethers.Contract(contractAddress, ThesisNFTAbi.abi, signer);
+      const tx = await contract.payForUpload({ value: ethers.utils.parseEther(fee.toString()) });
+      await tx.wait();
+      toast({ title: "Payment Successful", description: "Upload fee paid on-chain." });
+      return true;
+    } catch (error: any) {
+      toast({ title: "Payment Failed", description: error.message || String(error), variant: "destructive" });
+      return false;
+    }
+  };
+
   const handleUpload = async () => {
     if (!selectedFile || !title || !category || !walletAddress) {
       toast({
@@ -78,6 +108,14 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
       });
       return;
     }
+
+    // Require payment before upload
+    if (!uploadFee) {
+      toast({ title: "Upload Fee Missing", description: "Please select a file to calculate the upload fee.", variant: "destructive" });
+      return;
+    }
+    const paid = await handlePayForUpload(uploadFee);
+    if (!paid) return;
 
     setIsUploading(true);
     setUploadStatus('uploading');
@@ -106,6 +144,23 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
       // Store the IPFS hash for display
       setIpfsHash(mockIpfsHash);
       setUploadStatus('success');
+      
+      // Save thesis to DataManager so it appears in minting section
+      const thesisData = {
+        id: Math.random().toString(36).substr(2, 9),
+        title,
+        description,
+        author: walletAddress, // or replace with an author field if you have one
+        university: '', // add a field if you collect it
+        year: '', // add a field if you collect it
+        field: category,
+        ipfsHash: mockIpfsHash,
+        postedAt: new Date(),
+        walletAddress,
+        status: 'active' as const,
+        tags: [],
+      };
+      DataManager.getInstance().saveThesis(thesisData);
       
       toast({
         title: "Thesis Uploaded Successfully",
@@ -146,6 +201,7 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
     setCategory('');
     setUploadStatus('idle');
     setIpfsHash('');
+    setUploadFee(null);
   };
 
   if (!walletAddress) {
@@ -257,6 +313,7 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-blue-400"
+                  title="Select a category"
                 >
                   <option value="">Select a category</option>
                   {categories.map((cat) => (
@@ -280,6 +337,13 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
                   placeholder="Provide a brief description of your thesis"
                 />
               </div>
+
+              {/* Upload Fee */}
+              {selectedFile && uploadFee !== null && (
+                <div className="text-yellow-400 font-semibold mb-2">
+                  Upload Fee: {uploadFee.toFixed(4)} tCORE2 (depends on file size)
+                </div>
+              )}
 
               {/* Upload Button */}
               <Button

@@ -10,7 +10,17 @@ interface MintingSectionProps {
 }
 
 const MintingSection: React.FC<MintingSectionProps> = ({ walletAddress }) => {
-  const [selectedThesis, setSelectedThesis] = useState<any | null>(null);
+  const [selectedThesis, setSelectedThesis] = useState<{
+    id: string;
+    title: string;
+    author: string;
+    university: string;
+    year: number;
+    field: string;
+    description: string;
+    ipfsHash?: string;
+    tags?: string[];
+  } | null>(null);
   const [mintQuantity, setMintQuantity] = useState(1);
   const [isMinting, setIsMinting] = useState(false);
   const { toast } = useToast();
@@ -29,10 +39,21 @@ const MintingSection: React.FC<MintingSectionProps> = ({ walletAddress }) => {
   const hasDiscount = stakedAmount >= 3; // 3 tCORE2 minimum for discount
   const baseFee = 0.05; // 0.05 CORE per NFT
   const discountRate = 0.2; // 20%
-  const finalFee = hasDiscount ? baseFee * (1 - discountRate) : baseFee;
-  const totalCost = finalFee * mintQuantity;
+  const discountedFee = hasDiscount ? baseFee * (1 - discountRate) : baseFee;
+  const platformFee = discountedFee * 0.2; // 20% platform fee
+  const totalCost = discountedFee + platformFee;
 
-  const handleThesisSelect = (thesis: any) => {
+  const handleThesisSelect = (thesis: {
+    id: string;
+    title: string;
+    author: string;
+    university: string;
+    year: number;
+    field: string;
+    description: string;
+    ipfsHash?: string;
+    tags?: string[];
+  }) => {
     setSelectedThesis(thesis);
     toast({
       title: "Thesis Selected",
@@ -63,7 +84,7 @@ const MintingSection: React.FC<MintingSectionProps> = ({ walletAddress }) => {
           thesisId: selectedThesis.id,
           thesisTitle: selectedThesis.title,
           mintedAt: new Date(),
-          cost: finalFee,
+          cost: totalCost,
           transactionHash: `0x${Math.random().toString(16).substr(2, 64)}`,
           status: 'completed' as const
         };
@@ -164,7 +185,7 @@ const MintingSection: React.FC<MintingSectionProps> = ({ walletAddress }) => {
               <p className="text-sm text-gray-400">Total Mints</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-yellow-400">{finalFee.toFixed(4)} CORE</p>
+              <p className="text-2xl font-bold text-yellow-400">{totalCost.toFixed(4)} CORE</p>
               <p className="text-sm text-gray-400">Current Price</p>
             </div>
             <div>
@@ -351,8 +372,12 @@ const MintingSection: React.FC<MintingSectionProps> = ({ walletAddress }) => {
                   </div>
                 )}
                 <div className="flex justify-between text-gray-300">
+                  <span>Platform fee (20%):</span>
+                  <span>{platformFee.toFixed(4)} CORE</span>
+                </div>
+                <div className="flex justify-between text-gray-300">
                   <span>Final fee per NFT:</span>
-                  <span>{finalFee.toFixed(4)} CORE</span>
+                  <span>{discountedFee.toFixed(4)} CORE</span>
                 </div>
                 <div className="flex justify-between text-gray-300">
                   <span>Quantity:</span>
