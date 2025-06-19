@@ -22,6 +22,9 @@ interface MintRecord {
   cost: number;
   transactionHash?: string;
   status: 'completed' | 'pending';
+  isBlurred?: boolean;
+  blurredContent?: string;
+  ipfsHash?: string;
 }
 
 interface UserData {

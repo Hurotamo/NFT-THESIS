@@ -4,6 +4,7 @@ import { Upload, FileText, CheckCircle } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { IPFSService } from '../services/ipfsService';
 
 interface ThesisUploadProps {
   walletAddress: string;
@@ -38,19 +39,20 @@ const ThesisUpload: React.FC<ThesisUploadProps> = ({ walletAddress, onUploadSucc
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = event.target.files?.[0];
     if (uploadedFile) {
-      if (uploadedFile.type === 'application/pdf' || uploadedFile.type.startsWith('text/')) {
-        setFile(uploadedFile);
+      const validation = IPFSService.getInstance().validateFile(uploadedFile);
+      if (!validation.valid) {
         toast({
-          title: "File Uploaded",
-          description: `${uploadedFile.name} ready for posting`,
-        });
-      } else {
-        toast({
-          title: "Invalid File Type",
-          description: "Please upload a PDF or text file",
+          title: "Invalid File",
+          description: validation.error,
           variant: "destructive",
         });
+        return;
       }
+      setFile(uploadedFile);
+      toast({
+        title: "File Uploaded",
+        description: `${uploadedFile.name} ready for posting. Upload Fee: ${validation.fee} tCORE2`,
+      });
     }
   };
 
@@ -107,10 +109,11 @@ const ThesisUpload: React.FC<ThesisUploadProps> = ({ walletAddress, onUploadSucc
       setUniversity('');
       setYear('');
       setField('');
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload thesis. Please try again.';
       toast({
         title: "Upload Failed",
-        description: "Failed to upload thesis. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -239,7 +242,9 @@ const ThesisUpload: React.FC<ThesisUploadProps> = ({ walletAddress, onUploadSucc
                     <div>
                       <p className="text-white font-semibold mb-2">Upload your thesis</p>
                       <p className="text-sm text-gray-400">
-                        PDF, TXT, DOC up to 50MB
+                        PDF, TXT, DOC up to 80MB
+                        <br />
+                        Fee Tiers: 1–15MB: 0.01 tCORE2, 15–45MB: 0.03 tCORE2, 45–60MB: 0.06 tCORE2, 60–80MB: 0.09 tCORE2
                       </p>
                     </div>
                   )}

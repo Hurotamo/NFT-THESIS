@@ -355,6 +355,28 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
             )}
           </motion.div>
         </div>
+
+        {/* User's Minted NFTs */}
+        {userMintedNFTs.length > 0 && (
+          <div className="mt-12">
+            <h3 className="text-2xl font-bold text-white mb-6">Your Minted NFTs</h3>
+            <div className="grid gap-4">
+              {userMintedNFTs.map((nft, idx) => (
+                <div key={nft.tokenId || idx} className="backdrop-blur-md bg-white/5 rounded-xl p-4 border border-white/10">
+                  <h4 className="text-white font-semibold text-lg mb-2">{nft.metadata.title || `NFT #${idx + 1}`}</h4>
+                  {nft.isBlurred ? (
+                    <div className="bg-blue-900/20 border border-blue-400/30 rounded p-4 text-center">
+                      <p className="text-blue-300 italic mb-2">{nft.blurredContent}</p>
+                      <span className="text-xs text-blue-400">Content will unlock after auction completion</span>
+                    </div>
+                  ) : (
+                    <div className="text-green-400 text-sm">Full content unlocked! <a href={`https://ipfs.io/ipfs/${nft.metadata.ipfsHash}`} target="_blank" rel="noopener noreferrer" className="underline">View File</a></div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

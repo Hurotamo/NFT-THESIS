@@ -1,4 +1,3 @@
-
 export interface IPFSUploadResult {
   hash: string;
   url: string;
@@ -16,9 +15,9 @@ export interface UploadFeeStructure {
 export class IPFSService {
   private static instance: IPFSService;
   private uploadFees: UploadFeeStructure = {
-    baseFee: 0.01, // 0.01 CORE base fee
-    sizeMultiplier: 0.005, // 0.005 CORE per MB
-    maxFileSize: 50 * 1024 * 1024, // 50MB
+    baseFee: 0.01, // 0.01 CORE base fee (not used in strict tier mode)
+    sizeMultiplier: 0.005, // (not used in strict tier mode)
+    maxFileSize: 80 * 1024 * 1024, // 80MB
     allowedTypes: [
       'application/pdf',
       'application/msword',
@@ -51,9 +50,19 @@ export class IPFSService {
       };
     }
 
-    // Calculate upload fee
+    // Calculate upload fee using strict tiers
     const sizeInMB = file.size / (1024 * 1024);
-    const uploadFee = this.uploadFees.baseFee + (sizeInMB * this.uploadFees.sizeMultiplier);
+    let uploadFee = 0;
+    if (sizeInMB >= 1 && sizeInMB <= 15) uploadFee = 0.01;
+    else if (sizeInMB > 15 && sizeInMB <= 45) uploadFee = 0.03;
+    else if (sizeInMB > 45 && sizeInMB <= 60) uploadFee = 0.06;
+    else if (sizeInMB > 60 && sizeInMB <= 80) uploadFee = 0.09;
+    else {
+      return {
+        valid: false,
+        error: 'File size must be between 1MB and 80MB.'
+      };
+    }
 
     return {
       valid: true,
@@ -78,6 +87,40 @@ export class IPFSService {
 
   getUploadFee(fileSizeInBytes: number): number {
     const sizeInMB = fileSizeInBytes / (1024 * 1024);
-    return this.uploadFees.baseFee + (sizeInMB * this.uploadFees.sizeMultiplier);
+    if (sizeInMB >= 1 && sizeInMB <= 15) return 0.01;
+    if (sizeInMB > 15 && sizeInMB <= 45) return 0.03;
+    if (sizeInMB > 45 && sizeInMB <= 60) return 0.06;
+    if (sizeInMB > 60 && sizeInMB <= 80) return 0.09;
+    return 0;
   }
+}
+
+export async function postThesisAndDeployContract(thesisData: any): Promise<string | null> {
+  try {
+    const response = await fetch('http://localhost:4000/api/post-thesis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(thesisData),
+    });
+    const data = await response.json();
+    if (data.success && data.contractAddress) {
+      return data.contractAddress;
+    }
+    return null;
+  } catch (error) {
+    console.error('Failed to post thesis and deploy contract:', error);
+    return null;
+  }
+}
+
+export async function uploadToIPFSWithPinata(file: File): Promise<{ hash: string; url: string; size: number; fileName: string }> {
+  const data = new FormData();
+  data.append('file', file);
+
+  const response = await fetch('http://localhost:4000/api/upload-ipfs', {
+    method: 'POST',
+    body: data,
+  });
+  if (!response.ok) throw new Error('IPFS upload failed');
+  return await response.json();
 }

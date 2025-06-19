@@ -29,6 +29,7 @@ export interface MintedNFT {
   isBlurred: boolean;
   mintedAt: Date;
   transactionHash: string;
+  blurredContent?: string;
 }
 
 export class NFTContractService {
@@ -144,6 +145,9 @@ export class NFTContractService {
     for (let i = 0; i < balance; i++) {
       const tokenId = (await this.contract.tokenOfOwnerByIndex(this.walletAddress, i)).toString();
       // Optionally fetch metadata from tokenURI or your backend here
+      // Simulate file type for demo (should fetch real type from metadata)
+      const fileType = 'application/pdf'; // Replace with real type if available
+      const isBlurred = true; // Replace with real logic
       nfts.push({
         tokenId,
         owner: this.walletAddress,
@@ -157,9 +161,10 @@ export class NFTContractService {
           ipfsHash: '',
           tags: []
         },
-        isBlurred: true,
+        isBlurred,
         mintedAt: new Date(),
         transactionHash: '',
+        blurredContent: isBlurred ? this.getBlurredFileContent(fileType) : undefined
       });
     }
     return nfts;
@@ -173,5 +178,15 @@ export class NFTContractService {
     // Call unblur function on the contract if exists
     // Placeholder: return true for now
     return true;
+  }
+
+  getBlurredFileContent(fileType: string): string {
+    if (fileType.startsWith('text/')) {
+      return 'This file is blurred. Mint the NFT to unlock the full content.';
+    }
+    if (fileType === 'application/pdf') {
+      return 'This PDF is blurred. Mint the NFT to unlock the full document.';
+    }
+    return 'This file is blurred. Mint the NFT to unlock.';
   }
 }

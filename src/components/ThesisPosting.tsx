@@ -11,7 +11,7 @@ import {
   type IPFSFileReference 
 } from '../utils/fileNaming';
 import DataManager from '../utils/dataManager';
-import { IPFSService } from '../services/ipfsService';
+import { IPFSService, postThesisAndDeployContract, uploadToIPFSWithPinata } from '../services/ipfsService';
 import { ethers } from "ethers";
 import ThesisNFTAbi from '../../core-contract/artifacts/contracts/Thesis-NFT.sol/ThesisNFT.json';
 
@@ -30,6 +30,7 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [ipfsHash, setIpfsHash] = useState<string>('');
   const [uploadFee, setUploadFee] = useState<number | null>(null);
+  const [nftSupply, setNftSupply] = useState<number>(40);
   const { toast } = useToast();
 
   const categories = [
@@ -52,7 +53,7 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const validation = validateFile(file);
+    const validation = IPFSService.getInstance().validateFile(file);
     if (!validation.valid) {
       toast({
         title: "Invalid File",
@@ -64,20 +65,7 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
 
     setSelectedFile(file);
     setUploadStatus('idle');
-    // Calculate fee
-    const sizeInMB = file.size / (1024 * 1024);
-    const fee = 0.01 + (sizeInMB * 0.005); // Or use IPFSService.getInstance().getUploadFee(file.size)
-    setUploadFee(fee);
-  };
-
-  const simulateIPFSUpload = async (file: File): Promise<string> => {
-    // Simulate IPFS upload delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Generate a mock IPFS hash
-    const timestamp = Date.now();
-    const fileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '');
-    return `Qm${timestamp.toString(36)}${fileName.slice(0, 10)}MockHash`;
+    setUploadFee(validation.fee || null);
   };
 
   const handlePayForUpload = async (fee: number) => {
@@ -108,6 +96,14 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
       });
       return;
     }
+    if (nftSupply < 40 || nftSupply > 100) {
+      toast({
+        title: "Invalid NFT Supply",
+        description: "NFT supply must be between 40 and 100.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     // Require payment before upload
     if (!uploadFee) {
@@ -123,16 +119,16 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
     try {
       console.log('Starting thesis upload process...');
       
-      // Step 1: Upload to IPFS (simulated)
-      const mockIpfsHash = await simulateIPFSUpload(selectedFile);
-      console.log('File uploaded to IPFS:', mockIpfsHash);
+      // Step 1: Upload to IPFS (real Pinata integration)
+      const ipfsResult = await uploadToIPFSWithPinata(selectedFile);
+      console.log('File uploaded to IPFS:', ipfsResult.hash);
       
       // Step 2: Create file reference with proper naming
       const fileReference: IPFSFileReference = createFileReference(
         selectedFile,
         walletAddress,
         category,
-        mockIpfsHash
+        ipfsResult.hash
       );
       
       console.log('Generated file reference:', fileReference);
@@ -142,7 +138,7 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
       console.log('Standardized filename:', standardizedFileName);
       
       // Store the IPFS hash for display
-      setIpfsHash(mockIpfsHash);
+      setIpfsHash(ipfsResult.hash);
       setUploadStatus('success');
       
       // Save thesis to DataManager so it appears in minting section
@@ -154,22 +150,38 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
         university: '', // add a field if you collect it
         year: '', // add a field if you collect it
         field: category,
-        ipfsHash: mockIpfsHash,
+        ipfsHash: ipfsResult.hash,
         postedAt: new Date(),
         walletAddress,
         status: 'active' as const,
         tags: [],
+        nftSupply,
       };
       DataManager.getInstance().saveThesis(thesisData);
       
+      // Call backend to deploy contract
+      const contractAddress = await postThesisAndDeployContract(thesisData);
+      if (contractAddress) {
+        toast({
+          title: "Contract Deployed!",
+          description: `NFT contract deployed at: ${contractAddress}`,
+        });
+      } else {
+        toast({
+          title: "Contract Deployment Failed",
+          description: "Could not deploy NFT contract.",
+          variant: "destructive",
+        });
+      }
+      
       toast({
         title: "Thesis Uploaded Successfully",
-        description: `File uploaded to IPFS with hash: ${mockIpfsHash.slice(0, 10)}...`,
+        description: `File uploaded to IPFS with hash: ${ipfsResult.hash.slice(0, 10)}...`,
       });
 
       // Log file reference for backend integration
       console.log('File reference for backend:', {
-        ipfsHash: mockIpfsHash,
+        ipfsHash: ipfsResult.hash,
         fileName: standardizedFileName,
         title,
         description,
@@ -181,12 +193,13 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
         fileType: selectedFile.type
       });
 
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'There was an error uploading your thesis. Please try again.';
       console.error('Upload failed:', error);
       setUploadStatus('error');
       toast({
         title: "Upload Failed",
-        description: "There was an error uploading your thesis. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -202,6 +215,7 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
     setUploadStatus('idle');
     setIpfsHash('');
     setUploadFee(null);
+    setNftSupply(40);
   };
 
   if (!walletAddress) {
@@ -251,6 +265,14 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
                 <p className="text-green-400 font-mono text-sm break-all">
                   IPFS Hash: {ipfsHash}
                 </p>
+                <a
+                  href={`https://gateway.pinata.cloud/ipfs/${ipfsHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+                >
+                  View on IPFS
+                </a>
               </div>
               <p className="text-gray-300">
                 Your thesis has been uploaded to IPFS and is now available for minting.
@@ -284,7 +306,9 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
                       {selectedFile ? selectedFile.name : 'Click to upload or drag and drop'}
                     </p>
                     <p className="text-sm text-gray-500">
-                      PDF, DOC, DOCX, TXT (Max 50MB)
+                      PDF, DOC, DOCX, TXT (Max 80MB)
+                      <br />
+                      Fee Tiers: 1–15MB: 0.01 tCORE2, 15–45MB: 0.03 tCORE2, 45–60MB: 0.06 tCORE2, 60–80MB: 0.09 tCORE2
                     </p>
                   </label>
                 </div>
@@ -335,6 +359,22 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
                   rows={4}
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-400 resize-none"
                   placeholder="Provide a brief description of your thesis"
+                />
+              </div>
+
+              {/* NFT Supply */}
+              <div>
+                <label className="block text-white font-semibold mb-2">
+                  Number of NFTs (40-100) *
+                </label>
+                <input
+                  type="number"
+                  min={40}
+                  max={100}
+                  value={nftSupply}
+                  onChange={e => setNftSupply(Number(e.target.value))}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-400"
+                  placeholder="Enter NFT supply (40-100)"
                 />
               </div>
 

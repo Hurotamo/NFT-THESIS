@@ -213,7 +213,18 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <h4 className="text-white font-semibold text-lg mb-2">{thesis.title}</h4>
+                            <h4 className="text-white font-semibold text-lg mb-2">{thesis.title}
+                              {thesis.ipfsHash && (
+                                <a
+                                  href={`https://gateway.pinata.cloud/ipfs/${thesis.ipfsHash}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-400 underline ml-2 text-xs"
+                                >
+                                  View on IPFS
+                                </a>
+                              )}
+                            </h4>
                             <div className="flex items-center gap-4 text-sm text-gray-400 mb-2">
                               <span className="flex items-center gap-1">
                                 <User className="w-4 h-4" />
@@ -315,7 +326,18 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <h4 className="text-white font-semibold">{mint.thesisTitle}</h4>
+                            <h4 className="text-white font-semibold">{mint.thesisTitle}
+                              {mint.ipfsHash && (
+                                <a
+                                  href={`https://gateway.pinata.cloud/ipfs/${mint.ipfsHash}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-400 underline ml-2 text-xs"
+                                >
+                                  View on IPFS
+                                </a>
+                              )}
+                            </h4>
                             <p className="text-gray-400 text-sm flex items-center gap-2 mt-1">
                               <Calendar className="w-4 h-4" />
                               Minted {mint.mintedAt.toLocaleDateString()}
@@ -329,6 +351,14 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
                                 {mint.status}
                               </span>
                             </div>
+                            {mint.isBlurred ? (
+                              <div className="bg-blue-900/20 border border-blue-400/30 rounded p-4 text-center mt-3">
+                                <p className="text-blue-300 italic mb-2">{mint.blurredContent}</p>
+                                <span className="text-xs text-blue-400">Content will unlock after auction completion</span>
+                              </div>
+                            ) : (
+                              <div className="text-green-400 text-sm mt-3">Full content unlocked! <a href={`https://ipfs.io/ipfs/${mint.ipfsHash}`} target="_blank" rel="noopener noreferrer" className="underline">View File</a></div>
+                            )}
                           </div>
                           <div className="text-right ml-4">
                             <p className="text-purple-400 font-semibold">{mint.cost.toFixed(4)} CORE</p>
