@@ -53,7 +53,7 @@ MongoClient.connect(MONGO_URI, { useUnifiedTopology: true })
   });
 
 // Pinata IPFS upload endpoint
-app.post('/api/upload-ipfs', upload.single('file'), async (req, res) => {
+app.post('/api/upload-ipfs', upload.single('thesisFile'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
