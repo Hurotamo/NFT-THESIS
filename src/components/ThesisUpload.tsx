@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Upload, FileText, CheckCircle } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { IPFSService } from '../services/ipfsService';
+import { IPFSService, uploadFileAndRegisterOnChain } from '../services/ipfsService';
+import { NFTContractService } from '../services/nftContractService';
 
 interface ThesisUploadProps {
   walletAddress: string;
-  onUploadSuccess?: (thesis: any) => void;
+  onUploadSuccess?: (thesis: ThesisData) => void;
 }
 
 export interface ThesisData {
@@ -34,7 +35,31 @@ const ThesisUpload: React.FC<ThesisUploadProps> = ({ walletAddress, onUploadSucc
   const [year, setYear] = useState('');
   const [field, setField] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
+  const [uploadedFileInfo, setUploadedFileInfo] = useState<{ ipfsHash: string; fileSize: number; uploader: string } | null>(null);
+  const [mintPrice, setMintPrice] = useState('');
+  const [numberOfNFTs, setNumberOfNFTs] = useState('40');
   const { toast } = useToast();
+
+  // Fetch upload history on mount and after upload
+  useEffect(() => {
+    const fetchUploadHistory = async () => {
+      if (!walletAddress) return;
+      try {
+        const nftService = NFTContractService.getInstance();
+        const fileInfo = await nftService.getUploadedFileForUser(walletAddress);
+        if (fileInfo && fileInfo.ipfsHash) {
+          setUploadedFileInfo(fileInfo);
+        } else {
+          setUploadedFileInfo(null);
+        }
+      } catch {
+        setUploadedFileInfo(null);
+      }
+    };
+    fetchUploadHistory();
+  }, [walletAddress, uploadStatus]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = event.target.files?.[0];
@@ -57,21 +82,23 @@ const ThesisUpload: React.FC<ThesisUploadProps> = ({ walletAddress, onUploadSucc
   };
 
   const handleSubmit = async () => {
-    if (!file || !title || !author || !university || !year || !field) {
+    if (!file || !title || !author || !university || !year || !field || !mintPrice) {
       toast({
         title: "Missing Information",
-        description: "Please fill all required fields and upload a thesis file",
+        description: "Please fill all required fields, select a minting price, and upload a thesis file",
         variant: "destructive",
       });
       return;
     }
 
     setIsUploading(true);
+    setUploadStatus('pending');
+    setTxHash(null);
 
     try {
-      // Simulate IPFS upload and thesis posting
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      // Upload to IPFS and register on-chain
+      const { ipfs, txReceipt } = await uploadFileAndRegisterOnChain(file, mintPrice);
+
       const newThesis: ThesisData = {
         id: Math.random().toString(36).substr(2, 9),
         title,
@@ -81,26 +108,23 @@ const ThesisUpload: React.FC<ThesisUploadProps> = ({ walletAddress, onUploadSucc
         year,
         field,
         file,
-        ipfsHash: `Qm${Math.random().toString(36).substr(2, 44)}`,
+        ipfsHash: ipfs.hash,
         postedAt: new Date(),
         walletAddress
       };
 
-      // Store in localStorage for demo purposes
-      const existingTheses = JSON.parse(localStorage.getItem('postedTheses') || '[]');
-      existingTheses.push({...newThesis, file: undefined}); // Remove file object for storage
-      localStorage.setItem('postedTheses', JSON.stringify(existingTheses));
-      
+      setTxHash(txReceipt.transactionHash);
+      setUploadStatus('success');
+
       toast({
         title: "Thesis Uploaded Successfully!",
-        description: `"${title}" is now available for minting by investors`,
+        description: `On-chain upload complete. IPFS Hash: ${ipfs.hash}`,
       });
-      
-      // Call callback if provided
+
       if (onUploadSuccess) {
         onUploadSuccess(newThesis);
       }
-      
+
       // Reset form
       setFile(null);
       setTitle('');
@@ -109,7 +133,10 @@ const ThesisUpload: React.FC<ThesisUploadProps> = ({ walletAddress, onUploadSucc
       setUniversity('');
       setYear('');
       setField('');
+      setMintPrice('');
     } catch (error: unknown) {
+      setUploadStatus('error');
+      setTxHash(null);
       const errorMessage = error instanceof Error ? error.message : 'Failed to upload thesis. Please try again.';
       toast({
         title: "Upload Failed",
@@ -128,6 +155,19 @@ const ThesisUpload: React.FC<ThesisUploadProps> = ({ walletAddress, onUploadSucc
         animate={{ opacity: 1, y: 0 }}
         className="backdrop-blur-md bg-white/5 rounded-xl p-8 border border-white/10"
       >
+        {/* Status and Transaction Hash Display */}
+        {uploadStatus === 'pending' && (
+          <div className="mb-4 text-blue-400">Uploading thesis and waiting for on-chain confirmation...</div>
+        )}
+        {uploadStatus === 'success' && txHash && (
+          <div className="mb-4 text-green-400">
+            Upload successful! <br />
+            Transaction Hash: <a href={`https://explorer.coredao.org/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="underline text-blue-300">{txHash}</a>
+          </div>
+        )}
+        {uploadStatus === 'error' && (
+          <div className="mb-4 text-red-400">Upload failed. Please try again.</div>
+        )}
         <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
           <Upload className="w-8 h-8 text-blue-400" />
           Upload Your Thesis
@@ -200,6 +240,37 @@ const ThesisUpload: React.FC<ThesisUploadProps> = ({ walletAddress, onUploadSucc
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-400"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-white font-semibold mb-2">
+                Number of NFTs (40-100) *
+              </label>
+              <input
+                type="number"
+                min="40"
+                max="100"
+                value={numberOfNFTs}
+                onChange={(e) => setNumberOfNFTs(e.target.value)}
+                placeholder="e.g. 40"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-white font-semibold mb-2">
+                Minting Price (per NFT, in tCORE2) *
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={mintPrice}
+                onChange={(e) => setMintPrice(e.target.value)}
+                placeholder="Set your price (e.g. 0.05, 0.1, 0.25, etc.)"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-400"
+              />
+              <p className="text-xs text-gray-400 mt-1">Set your own minting price for your NFT. This can be any value in tCORE2 (e.g., 0.05, 0.1, 0.25, etc.).</p>
             </div>
 
             <div>
@@ -289,6 +360,20 @@ const ThesisUpload: React.FC<ThesisUploadProps> = ({ walletAddress, onUploadSucc
               )}
             </Button>
           </div>
+        </div>
+
+        {/* Upload History Section */}
+        <div className="mb-6">
+          <h4 className="text-lg font-semibold text-white mb-2">Your Uploaded Thesis</h4>
+          {uploadedFileInfo && uploadedFileInfo.ipfsHash ? (
+            <div className="bg-white/10 rounded-lg p-4 text-white">
+              <div><span className="font-bold">IPFS Hash:</span> <a href={`https://ipfs.io/ipfs/${uploadedFileInfo.ipfsHash}`} target="_blank" rel="noopener noreferrer" className="underline text-blue-300">{uploadedFileInfo.ipfsHash}</a></div>
+              <div><span className="font-bold">File Size:</span> {(uploadedFileInfo.fileSize / 1024 / 1024).toFixed(2)} MB</div>
+              <div><span className="font-bold">Uploader:</span> {uploadedFileInfo.uploader}</div>
+            </div>
+          ) : (
+            <div className="text-gray-400">No thesis uploaded yet.</div>
+          )}
         </div>
       </motion.div>
     </div>

@@ -1,3 +1,6 @@
+import { NFTContractService } from './nftContractService';
+import { ethers } from 'ethers';
+
 export interface IPFSUploadResult {
   hash: string;
   url: string;
@@ -123,4 +126,20 @@ export async function uploadToIPFSWithPinata(file: File): Promise<{ hash: string
   });
   if (!response.ok) throw new Error('IPFS upload failed');
   return await response.json();
+}
+
+/**
+ * Upload a file to IPFS and then register it on-chain with the NFT contract (enforcing fee and size)
+ * @param file The file to upload
+ * @param mintPrice The mint price in CORE
+ * @returns The IPFS upload result and the contract transaction receipt
+ */
+export async function uploadFileAndRegisterOnChain(file: File, mintPrice: string): Promise<{ ipfs: IPFSUploadResult, txReceipt: ethers.providers.TransactionReceipt }> {
+  const ipfsService = IPFSService.getInstance();
+  const nftService = NFTContractService.getInstance();
+  // Upload to IPFS
+  const ipfs = await ipfsService.uploadToIPFS(file);
+  // Register on-chain (enforce fee/size and mint price)
+  const txReceipt = await nftService.uploadFileToContract(ipfs.hash, ipfs.size, mintPrice);
+  return { ipfs, txReceipt };
 }

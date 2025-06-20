@@ -189,4 +189,85 @@ export class NFTContractService {
     }
     return 'This file is blurred. Mint the NFT to unlock.';
   }
+
+  /**
+   * Upload a file to the NFT contract, enforcing file size and fee logic on-chain, and set minting price
+   * @param ipfsHash The IPFS hash of the uploaded file
+   * @param fileSize The file size in bytes
+   * @param mintPrice The minting price per NFT in tCORE2 (as string, will be converted to wei)
+   * @returns The transaction receipt
+   */
+  async uploadFileToContract(ipfsHash: string, fileSize: number, mintPrice: string): Promise<ethers.providers.TransactionReceipt> {
+    if (!this.walletAddress) {
+      throw new Error("Wallet address not set");
+    }
+    if (!this.contract) {
+      throw new Error("Contract not initialized");
+    }
+    // Calculate required fee (in ETH)
+    const sizeInMB = fileSize / (1024 * 1024);
+    let requiredFee = 0;
+    if (sizeInMB >= 1 && sizeInMB <= 15) requiredFee = 0.01;
+    else if (sizeInMB > 15 && sizeInMB <= 45) requiredFee = 0.03;
+    else if (sizeInMB > 45 && sizeInMB <= 60) requiredFee = 0.06;
+    else if (sizeInMB > 60 && sizeInMB <= 80) requiredFee = 0.09;
+    else throw new Error('File size must be between 1MB and 80MB.');
+    const value = ethers.utils.parseEther(requiredFee.toString());
+    const mintPriceWei = ethers.utils.parseEther(mintPrice);
+    // Call the contract function
+    const tx = await this.contract.uploadFile(ipfsHash, fileSize, mintPriceWei, { value });
+    return await tx.wait();
+  }
+
+  /**
+   * Mint an NFT for a given uploader, using their mint price
+   * @param uploader The uploader's address
+   * @param stakedAmount The staked amount for discount (optional)
+   * @returns The transaction receipt
+   */
+  async mintNFTForUploader(uploader: string, stakedAmount: number = 0): Promise<ethers.providers.TransactionReceipt> {
+    if (!this.walletAddress) {
+      throw new Error("Wallet address not set");
+    }
+    if (!this.contract) {
+      throw new Error("Contract not initialized");
+    }
+    // Get the uploader's mint price from the contract
+    const mintPriceWei = await this.contract.getMintPrice(uploader);
+    // Calculate discount if applicable
+    const hasStakingDiscount = stakedAmount >= 3; // 3 tCORE2 minimum for discount
+    const discountRate = hasStakingDiscount ? 0.2 : 0;
+    const effectivePrice = mintPriceWei.mul(ethers.BigNumber.from(100 - discountRate * 100)).div(100);
+    // Add platform fee (20%)
+    const platformFee = effectivePrice.mul(20).div(100);
+    const totalPrice = effectivePrice.add(platformFee);
+    // Call the mint function on the contract
+    const tx = await this.contract.mint(uploader, 1, { value: totalPrice });
+    return await tx.wait();
+  }
+
+  /**
+   * Get the mint price for a given uploader
+   * @param uploader The uploader's address
+   * @returns The mint price in wei (as BigNumber)
+   */
+  async getMintPriceForUploader(uploader: string): Promise<ethers.BigNumber> {
+    if (!this.contract) {
+      throw new Error("Contract not initialized");
+    }
+    return await this.contract.getMintPrice(uploader);
+  }
+
+  /**
+   * Fetch uploaded file info for a user from the contract
+   * @param userAddress The address of the user
+   * @returns { ipfsHash: string, fileSize: number, uploader: string }
+   */
+  async getUploadedFileForUser(userAddress: string): Promise<{ ipfsHash: string; fileSize: number; uploader: string }> {
+    if (!this.contract) {
+      throw new Error("Contract not initialized");
+    }
+    const [ipfsHash, fileSize, uploader] = await this.contract.getUploadedFile(userAddress);
+    return { ipfsHash, fileSize: Number(fileSize), uploader };
+  }
 }

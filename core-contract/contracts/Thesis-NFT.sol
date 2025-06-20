@@ -44,6 +44,18 @@ contract ThesisNFT is ERC721, Ownable {
     /// @dev Mapping to track which tokens have been revealed.
     mapping(uint256 => bool) private _revealedTokens;
 
+    /// @dev Struct to store uploaded file info
+    struct UploadedFile {
+        string ipfsHash;
+        uint256 fileSize;
+        address uploader;
+    }
+    /// @dev Mapping from uploader to their uploaded file
+    mapping(address => UploadedFile) public uploadedFiles;
+
+    /// @dev Mapping from uploader to their minting price (in wei)
+    mapping(address => uint256) public mintPrices;
+
     /// @dev Emitted when the auction phase begins.
     event AuctionStarted();
     /// @dev Emitted when the NFT price is updated.
@@ -56,8 +68,8 @@ contract ThesisNFT is ERC721, Ownable {
     event IpfsHashSet(string ipfsHash);
     /// @dev Emitted when a file is revealed for a token.
     event FileRevealed(uint256 tokenId);
-    /// @dev Emitted when an upload payment is received.
-    event UploadPayment(address indexed user, uint256 amount);
+    /// @dev Emitted when a file is uploaded
+    event FileUploaded(address indexed uploader, string ipfsHash, uint256 fileSize, uint256 feePaid, uint256 mintPrice);
 
     /// @dev Constructor to initialize the NFT contract with basic parameters.
     /// @param name_ The name of the NFT collection.
@@ -97,27 +109,25 @@ contract ThesisNFT is ERC721, Ownable {
         return _tokenIdCounter;
     }
 
-    /// @dev Allows users to mint NFTs with staking-based discounts.
+    /// @dev Allows users to mint NFTs with staking-based discounts and per-uploader price
     /// @param amount The number of NFTs to mint (must be 1).
-    function mint(uint256 amount) external payable {
+    function mint(address uploader, uint256 amount) external payable {
         require(!auctionStarted, "Minting is closed, auction started");
         require(amount == 1, "Can only mint 1 NFT per wallet");
         require(!_hasMinted[msg.sender], "Address has already minted");
         require(totalSupply() + amount <= maxSupply, "Exceeds max supply");
-
-        uint256 effectivePrice = price;
+        uint256 uploaderMintPrice = mintPrices[uploader];
+        require(uploaderMintPrice > 0, "Uploader has not set mint price");
+        uint256 effectivePrice = uploaderMintPrice;
         uint256 discountPercent = stakingContract.getDiscountPercentage(msg.sender);
         if (discountPercent > 0) {
-            uint256 discount = (price * discountPercent) / 100;
-            effectivePrice = price - discount;
+            uint256 discount = (uploaderMintPrice * discountPercent) / 100;
+            effectivePrice = uploaderMintPrice - discount;
         }
-
         // Apply platform fee of 20%
         uint256 platformFee = (effectivePrice * 20) / 100;
         uint256 totalPrice = effectivePrice + platformFee;
-
         require(msg.value >= totalPrice * amount, "Insufficient ETH sent");
-
         uint256 startTokenId = _tokenIdCounter;
         for (uint256 i = 0; i < amount; i++) {
             emit DebugMintStep("Before minting token", _tokenIdCounter);
@@ -127,14 +137,10 @@ contract ThesisNFT is ERC721, Ownable {
             console.log("After minting token, tokenId:", _tokenIdCounter);
             _tokenIdCounter++;
         }
-
         _hasMinted[msg.sender] = true;
-
         emit DebugMintStep("After minting loop", _tokenIdCounter);
         console.log("After minting loop, final tokenId:", _tokenIdCounter);
-
         emit Minted(msg.sender, amount, startTokenId);
-
         // If min supply reached, start auction
         if (totalSupply() >= minSupply) {
             auctionStarted = true;
@@ -205,11 +211,42 @@ contract ThesisNFT is ERC721, Ownable {
         return _hasMinted[user];
     }
 
-    /// @dev Allows users to pay for an upload.
+    /// @dev Upload a file with enforced fee and size logic and set minting price
+    /// @param _ipfsHash The IPFS hash of the file
+    /// @param _fileSize The file size in bytes
+    /// @param _mintPrice The minting price per NFT in wei
+    function uploadFile(string memory _ipfsHash, uint256 _fileSize, uint256 _mintPrice) external payable {
+        require(_fileSize >= 1 * 1024 * 1024 && _fileSize <= 80 * 1024 * 1024, "File size must be 1MB-80MB");
+        require(_mintPrice >= 0.01 ether && _mintPrice <= 1 ether, "Mint price must be 0.01-1 tCORE2");
+        uint256 sizeInMB = _fileSize / (1024 * 1024);
+        uint256 requiredFee = 0;
+        if (sizeInMB >= 1 && sizeInMB <= 15) requiredFee = 0.01 ether;
+        else if (sizeInMB > 15 && sizeInMB <= 45) requiredFee = 0.03 ether;
+        else if (sizeInMB > 45 && sizeInMB <= 60) requiredFee = 0.06 ether;
+        else if (sizeInMB > 60 && sizeInMB <= 80) requiredFee = 0.09 ether;
+        else revert("File size tier not allowed");
+        require(msg.value >= requiredFee, "Insufficient upload fee");
+        uploadedFiles[msg.sender] = UploadedFile(_ipfsHash, _fileSize, msg.sender);
+        mintPrices[msg.sender] = _mintPrice;
+        ipfsHash = _ipfsHash;
+        emit FileUploaded(msg.sender, _ipfsHash, _fileSize, msg.value, _mintPrice);
+    }
+
+    /// @dev Get uploaded file info for a user
+    function getUploadedFile(address user) external view returns (string memory, uint256, address) {
+        UploadedFile memory f = uploadedFiles[user];
+        return (f.ipfsHash, f.fileSize, f.uploader);
+    }
+
+    /// @dev Get minting price for a user
+    function getMintPrice(address user) public view returns (uint256) {
+        return mintPrices[user];
+    }
+
+    // Optionally deprecate payForUpload
+    /// @dev Deprecated: Use uploadFile instead
     function payForUpload() public payable {
-        require(msg.value > 0, "Fee required");
-        emit UploadPayment(msg.sender, msg.value);
-        // You can add more logic here if needed
+        revert("Use uploadFile with file size and hash");
     }
 }
 

@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useRealTimeUpdates } from '../hooks/useRealTimeUpdates';
 import { useContracts } from '../hooks/useContracts';
-import { NFTMetadata } from '../services/nftContractService';
+import { NFTMetadata, MintedNFT } from '../services/nftContractService';
+import { NFTContractService } from '../services/nftContractService';
+import { ethers } from 'ethers';
 
 interface EnhancedMintingSectionProps {
   walletAddress: string;
@@ -35,9 +37,13 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
     lastUpdate 
   } = useRealTimeUpdates();
 
-  const [userMintedNFTs, setUserMintedNFTs] = useState<Array<{ thesisId: string }>>([]);
+  const [userMintedNFTs, setUserMintedNFTs] = useState<MintedNFT[]>([]);
   const [totalStaked, setTotalStaked] = useState(0);
   const [hasDiscount, setHasDiscount] = useState(false);
+  const [uploaderAddress, setUploaderAddress] = useState<string | null>(null);
+  const [mintPrice, setMintPrice] = useState<string>('0');
+  const [finalCost, setFinalCost] = useState<string>('0');
+  const [txHash, setTxHash] = useState<string | null>(null);
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -52,7 +58,7 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
           setTotalStaked(staked);
           setHasDiscount(discount);
           setUserMintedNFTs(nfts);
-        } catch (error) {
+        } catch (error: unknown) {
           console.error('Failed to load user data:', error);
         }
       }
@@ -61,12 +67,32 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
     loadUserData();
   }, [walletAddress, getTotalStaked, hasDiscountEligibility, getUserNFTs]);
 
-  const baseFee = 0.05; // 0.05 CORE per NFT
-  const platformFeePercentage = 20; // 20% platform fee (matches contract)
-  const discountRate = hasDiscount ? 0.2 : 0; // 20% discount for stakers
-  const discountedFee = baseFee * (1 - discountRate);
-  const platformFee = discountedFee * (platformFeePercentage / 100);
-  const totalCost = discountedFee + platformFee;
+  // Fetch uploader and mint price when a thesis is selected
+  useEffect(() => {
+    const fetchMintPrice = async () => {
+      if (!selectedThesis) return;
+      // Assume thesis.author is the uploader address (update if needed)
+      const uploader = selectedThesis.author;
+      setUploaderAddress(uploader);
+      try {
+        const nftService = NFTContractService.getInstance();
+        const priceBN = await nftService.getMintPriceForUploader(uploader);
+        const price = ethers.utils.formatEther(priceBN);
+        setMintPrice(price);
+        // Calculate discount and total cost
+        const stakedAmount = totalStaked; // Use real staked amount
+        const hasDiscount = stakedAmount >= 3;
+        const discountRate = hasDiscount ? 0.2 : 0;
+        const discounted = parseFloat(price) * (1 - discountRate);
+        const platformFee = discounted * 0.2;
+        setFinalCost((discounted + platformFee).toFixed(4));
+      } catch {
+        setMintPrice('0');
+        setFinalCost('0');
+      }
+    };
+    fetchMintPrice();
+  }, [selectedThesis, totalStaked]);
 
   const handleThesisSelect = (thesis: {
     id: string;
@@ -88,11 +114,11 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
 
   const canUserMintThesis = (thesisId: string): boolean => {
     // Check if user has already minted this thesis
-    return !userMintedNFTs.some(nft => nft.thesisId === thesisId);
+    return !userMintedNFTs.some(nft => nft.metadata.title === selectedThesis?.title);
   };
 
   const handleMint = async () => {
-    if (!selectedThesis) {
+    if (!selectedThesis || !uploaderAddress) {
       toast({
         title: "No Thesis Selected",
         description: "Please select a thesis to mint",
@@ -100,7 +126,6 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
       });
       return;
     }
-
     if (!canUserMintThesis(selectedThesis.id)) {
       toast({
         title: "Already Minted",
@@ -109,40 +134,22 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
       });
       return;
     }
-
     setIsMinting(true);
-
+    setTxHash(null);
     try {
-      const metadata: NFTMetadata = {
-        title: selectedThesis.title,
-        author: selectedThesis.author,
-        university: selectedThesis.university,
-        year: selectedThesis.year,
-        field: selectedThesis.field,
-        description: selectedThesis.description,
-        ipfsHash: selectedThesis.ipfsHash || 'mock_hash',
-        tags: selectedThesis.tags || []
-      };
-
-      const mintedNFT = await mintNFT(selectedThesis.id, metadata, totalStaked);
-      
-      if (mintedNFT) {
-        // Refresh data
-        refreshData();
-        const updatedNFTs = await getUserNFTs();
-        setUserMintedNFTs(updatedNFTs);
-        
-        toast({
-          title: "NFT Minted Successfully!",
-          description: `NFT minted for "${selectedThesis.title}" at ${totalCost.toFixed(4)} CORE. NFT is blurred until auction completion.`,
-        });
-        
-        setSelectedThesis(null);
-      }
-    } catch (error: any) {
+      const nftService = NFTContractService.getInstance();
+      const txReceipt = await nftService.mintNFTForUploader(uploaderAddress, totalStaked);
+      setTxHash(txReceipt.transactionHash);
+      toast({
+        title: "NFT Minted Successfully!",
+        description: `Transaction: ${txReceipt.transactionHash}`,
+      });
+      setSelectedThesis(null);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to mint NFT. Please try again.";
       toast({
         title: "Minting Failed",
-        description: error.message || "Failed to mint NFT. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -229,7 +236,7 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
               <p className="text-sm text-gray-400">Discount</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-yellow-400">{totalCost.toFixed(4)}</p>
+              <p className="text-2xl font-bold text-yellow-400">{finalCost} tCORE2</p>
               <p className="text-sm text-gray-400">Mint Price</p>
             </div>
           </div>
@@ -292,26 +299,24 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
               <div className="backdrop-blur-md bg-white/5 rounded-xl p-6 border border-white/10">
                 <h4 className="text-xl font-semibold text-white mb-4">{selectedThesis.title}</h4>
                 
-                {/* Fee Breakdown */}
-                <div className="space-y-3 mb-6">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Base Fee:</span>
-                    <span className="text-white">{baseFee.toFixed(4)} CORE</span>
+                {/* Cost Breakdown */}
+                <div className="space-y-3">
+                  <div className="flex justify-between text-gray-300">
+                    <span>Mint price per NFT:</span>
+                    <span>{mintPrice} tCORE2</span>
                   </div>
-                  {hasDiscount && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Staking Discount (20%):</span>
-                      <span className="text-green-400">-{(baseFee * discountRate).toFixed(4)} CORE</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Platform Fee (20%):</span>
-                    <span className="text-yellow-400">{platformFee.toFixed(4)} CORE</span>
+                  <div className="flex justify-between text-gray-300">
+                    <span>Final cost per NFT (with discount & fee):</span>
+                    <span>{finalCost} tCORE2</span>
                   </div>
-                  <div className="border-t border-white/20 pt-2">
-                    <div className="flex justify-between font-semibold">
-                      <span className="text-white">Total Cost:</span>
-                      <span className="text-green-400">{totalCost.toFixed(4)} CORE</span>
+                  <div className="flex justify-between text-gray-300">
+                    <span>Quantity:</span>
+                    <span>1</span>
+                  </div>
+                  <div className="border-t border-white/10 pt-3">
+                    <div className="flex justify-between text-white font-bold text-lg">
+                      <span>Total Cost:</span>
+                      <span>{finalCost} tCORE2</span>
                     </div>
                   </div>
                 </div>
@@ -319,21 +324,24 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
                 {/* Mint Button */}
                 <Button
                   onClick={handleMint}
-                  disabled={isMinting}
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-3 rounded-lg font-semibold disabled:opacity-50"
+                  disabled={!selectedThesis || isMinting}
+                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-4 rounded-lg font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isMinting ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Minting...
+                    <div className="flex items-center gap-3">
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Minting on Blockchain...
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2">
-                      <Coins className="w-5 h-5" />
-                      Mint NFT
-                    </div>
+                    `Mint 1 NFT`
                   )}
                 </Button>
+
+                {txHash && (
+                  <div className="mt-2 text-green-400 text-xs text-center">
+                    Minted! Tx: <a href={`https://explorer.coredao.org/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="underline">{txHash}</a>
+                  </div>
+                )}
 
                 {/* Info */}
                 <div className="mt-4 p-3 bg-blue-600/10 border border-blue-400/20 rounded-lg">
