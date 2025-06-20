@@ -32,7 +32,9 @@ const fileRegistry = new ethers.Contract(fileRegistryAddress, fileRegistryABI, w
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: 'https://academenft.netlify.app'
+}));
 
 // Global unhandled rejection handler
 process.on('unhandledRejection', (reason, promise) => {
