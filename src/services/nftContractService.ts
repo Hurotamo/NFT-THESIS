@@ -56,7 +56,7 @@ export class NFTContractService {
       const signer = this.provider.getSigner();
       // Import the ABI and contract address as needed
       const ThesisNFTAbi = (await import('../../core-contract/artifacts/contracts/Thesis-NFT.sol/ThesisNFT.json')).default.abi;
-      const contractAddress = "0x660C6Bc195a5B12CF453FaCC4AbA419216C6fB24";
+      const contractAddress = "0x84ac88b00dc5255F70077f824d2fF103B454C68A";
       this.contract = new ethers.Contract(contractAddress, ThesisNFTAbi, signer);
     }
   }

@@ -27,8 +27,8 @@ echo "RPC_URL=https://rpc.testnet.core.org" >> .env
 echo "CONTRACT_PRIVATE_KEY=your_contract_private_key_here" >> .env
 
 # Contract addresses (user needs to update these after deployment)
-echo "FILEREGISTRY_ADDRESS=your_file_registry_address_here" >> .env
-echo "THESIS_NFT_ADDRESS=0x660C6Bc195a5B12CF453FaCC4AbA419216C6fB24" >> .env
+echo "FILEREGISTRY_ADDRESS=0x3A53Fb7531e16E22e6338EE703C674e9Ef958ab1" >> .env
+echo "THESIS_NFT_ADDRESS=0x84ac88b00dc5255F70077f824d2fF103B454C68A" >> .env
 
 # Port configuration
 echo "PORT=4000" >> .env
@@ -43,4 +43,7 @@ echo "3. FILEREGISTRY_ADDRESS - Deploy FileRegistry contract and update this add
 echo ""
 echo "The THESIS_NFT_ADDRESS is already set to the deployed contract address."
 echo ""
-echo "After updating the .env file, restart your backend server." 
+echo "After updating the .env file, restart your backend server."
+
+sed -i '' 's/^THESIS_NFT_ADDRESS=.*/THESIS_NFT_ADDRESS=0x84ac88b00dc5255F70077f824d2fF103B454C68A/' .env
+sed -i '' 's/^FILEREGISTRY_ADDRESS=.*/FILEREGISTRY_ADDRESS=0x3A53Fb7531e16E22e6338EE703C674e9Ef958ab1/' .env 

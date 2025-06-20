@@ -6,7 +6,7 @@ async function main() {
   console.log("Deploying ThesisAuction contract with the account:", deployer.address);
 
   // Hardcoded ThesisNFT contract address to avoid environment variable error
-  const thesisNFTAddress = "0x6DE1bC8eCe7009Dc97fD41591408A8777bd2f116";
+  const thesisNFTAddress = "0x84ac88b00dc5255F70077f824d2fF103B454C68A";
 
   const initialPrice = ethers.parseEther("0.1");
   const nftOwner = deployer.address;
