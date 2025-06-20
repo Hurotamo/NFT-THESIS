@@ -23,7 +23,7 @@ core_testnet
  npx hardhat run scripts/deployThesis-NFT.ts --network core_testnet
 
 
-
+npx hardhat run scripts/deployFileRegistry.ts --network core_testnet
 test script 
 
 npx jest /test/Staking.test.ts

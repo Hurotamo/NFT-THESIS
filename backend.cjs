@@ -10,12 +10,20 @@ const upload = multer();
 const FormData = require('form-data');
 const fs = require('fs');
 const axios = require('axios');
+const ethers = require('ethers');
 
 // Use environment variables for credentials
 const pinata = new pinataSDK(
   process.env.PINATA_API_KEY,
   process.env.PINATA_SECRET_API_KEY
 );
+
+// FileRegistry contract setup
+const fileRegistryABI = require('./core-contract/artifacts/contracts/FileRegistry.sol/FileRegistry.json').abi;
+const fileRegistryAddress = process.env.FILEREGISTRY_ADDRESS;
+const provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
+const wallet = new ethers.Wallet(process.env.CONTRACT_PRIVATE_KEY, provider);
+const fileRegistry = new ethers.Contract(fileRegistryAddress, fileRegistryABI, wallet);
 
 const app = express();
 app.use(express.json());
@@ -36,6 +44,9 @@ app.post('/api/upload-ipfs', upload.single('file'), async (req, res) => {
     const result = await pinata.pinFileToIPFS(stream, {
       pinataMetadata: { name: req.file.originalname }
     });
+    // Save file info to smart contract
+    const tx = await fileRegistry.uploadFile(result.IpfsHash, req.file.originalname);
+    await tx.wait();
     res.json({
       hash: result.IpfsHash,
       url: `https://gateway.pinata.cloud/ipfs/${result.IpfsHash}`,
@@ -45,6 +56,18 @@ app.post('/api/upload-ipfs', upload.single('file'), async (req, res) => {
   } catch (err) {
     console.error('Upload error:', err);
     res.status(500).json({ error: err.message || 'Unknown error' });
+  }
+});
+
+// GET /api/all-files - fetch all uploaded files from the smart contract
+app.get('/api/all-files', async (req, res) => {
+  try {
+    const files = await fileRegistry.getAllFiles();
+    // files is an array of structs: { uploader, ipfsHash, fileName, timestamp }
+    res.json(files);
+  } catch (err) {
+    console.error('Fetch all files error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
