@@ -11,7 +11,7 @@ import {
   type IPFSFileReference 
 } from '../utils/fileNaming';
 import DataManager from '../utils/dataManager';
-import { IPFSService, postThesisAndDeployContract, uploadToIPFSWithPinata } from '../services/ipfsService';
+import { IPFSService, postThesis, uploadToIPFS } from '../services/ipfsService';
 import { ethers } from "ethers";
 import ThesisNFTAbi from '../../core-contract/artifacts/contracts/Thesis-NFT.sol/ThesisNFT.json';
 
@@ -119,16 +119,28 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
     try {
       console.log('Starting thesis upload process...');
       
+      const setStatus = (status: { success: boolean; message: string }) => {
+        toast({
+          title: status.success ? "Success" : "Error",
+          description: status.message,
+          variant: status.success ? "default" : "destructive",
+        });
+      };
+      
       // Step 1: Upload to IPFS (real Pinata integration)
-      const ipfsResult = await uploadToIPFSWithPinata(selectedFile);
-      console.log('File uploaded to IPFS:', ipfsResult.hash);
+      const ipfsResult = await uploadToIPFS(selectedFile, setIsUploading, setStatus);
+      if (!ipfsResult) {
+        setUploadStatus('error');
+        return;
+      }
+      console.log('File uploaded to IPFS:', ipfsResult.cid);
       
       // Step 2: Create file reference with proper naming
       const fileReference: IPFSFileReference = createFileReference(
         selectedFile,
         walletAddress,
         category,
-        ipfsResult.hash
+        ipfsResult.cid
       );
       
       console.log('Generated file reference:', fileReference);
@@ -138,7 +150,7 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
       console.log('Standardized filename:', standardizedFileName);
       
       // Store the IPFS hash for display
-      setIpfsHash(ipfsResult.hash);
+      setIpfsHash(ipfsResult.cid);
       setUploadStatus('success');
       
       // Save thesis to DataManager so it appears in minting section
@@ -150,7 +162,7 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
         university: '', // add a field if you collect it
         year: '', // add a field if you collect it
         field: category,
-        ipfsHash: ipfsResult.hash,
+        ipfsHash: ipfsResult.cid,
         postedAt: new Date(),
         walletAddress,
         status: 'active' as const,
@@ -160,7 +172,7 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
       DataManager.getInstance().saveThesis(thesisData);
       
       // Call backend to deploy contract
-      const contractAddress = await postThesisAndDeployContract(thesisData);
+      const contractAddress = await postThesis(thesisData, setIsUploading, setStatus);
       if (contractAddress) {
         toast({
           title: "Contract Deployed!",
@@ -176,12 +188,12 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
       
       toast({
         title: "Thesis Uploaded Successfully",
-        description: `File uploaded to IPFS with hash: ${ipfsResult.hash.slice(0, 10)}...`,
+        description: `File uploaded to IPFS with hash: ${ipfsResult.cid.slice(0, 10)}...`,
       });
 
       // Log file reference for backend integration
       console.log('File reference for backend:', {
-        ipfsHash: ipfsResult.hash,
+        ipfsHash: ipfsResult.cid,
         fileName: standardizedFileName,
         title,
         description,
