@@ -1,28 +1,36 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import DataManager from '../utils/dataManager';
+import axios from 'axios';
 
 interface RealTimeData {
-  theses: any[];
+  thesis: any[];
   mintCounts: { [key: string]: number };
   globalStats: any;
   lastUpdate: Date;
 }
 
+interface FileInfo {
+  uploader: string;
+  ipfsHash: string;
+  fileName: string;
+  timestamp: number;
+}
+
 export const useRealTimeUpdates = (walletAddress?: string) => {
   const [data, setData] = useState<RealTimeData>({
-    theses: [],
+    thesis: [],
     mintCounts: {},
     globalStats: {},
     lastUpdate: new Date()
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [thesis, setThesis] = useState<FileInfo[]>([]);
 
   const dataManager = DataManager.getInstance();
 
   const refreshData = useCallback(() => {
     const newData = {
-      theses: dataManager.getAllTheses(),
+      thesis: dataManager.getAllThesis(),
       mintCounts: dataManager.getMintCounts(),
       globalStats: dataManager.getGlobalStats(),
       lastUpdate: new Date()
@@ -30,6 +38,26 @@ export const useRealTimeUpdates = (walletAddress?: string) => {
     setData(newData);
     setIsLoading(false);
   }, [dataManager]);
+
+  const fetchAllFiles = async () => {
+    setIsLoading(true);
+    try {
+      const res = await axios.get('/api/all-files');
+      setData(prevData => ({
+        ...prevData,
+        thesis: res.data,
+        lastUpdate: new Date()
+      }));
+    } catch (err) {
+      setData(prevData => ({
+        ...prevData,
+        thesis: [],
+        lastUpdate: new Date()
+      }));
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     // Initial load
@@ -57,9 +85,15 @@ export const useRealTimeUpdates = (walletAddress?: string) => {
     };
   }, [refreshData]);
 
-  const getUserTheses = useCallback(() => {
+  useEffect(() => {
+    fetchAllFiles();
+    const interval = setInterval(fetchAllFiles, 3 * 60 * 1000); // 3 minutes
+    return () => clearInterval(interval);
+  }, []);
+
+  const getUserThesis = useCallback(() => {
     if (!walletAddress) return [];
-    return dataManager.getUserTheses(walletAddress);
+    return dataManager.getUserThesis(walletAddress);
   }, [walletAddress, dataManager, data.lastUpdate]);
 
   const getUserMints = useCallback(() => {
@@ -76,7 +110,7 @@ export const useRealTimeUpdates = (walletAddress?: string) => {
     ...data,
     isLoading,
     refreshData,
-    getUserTheses,
+    getUserThesis,
     getUserMints,
     getUserData,
     dataManager

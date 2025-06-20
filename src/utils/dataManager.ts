@@ -40,7 +40,7 @@ interface UserData {
 class DataManager {
   private static instance: DataManager;
   private storageKeys = {
-    theses: 'thesis_vault_theses',
+    thesis: 'thesis_vault_thesis',
     mintCounts: 'thesis_vault_mint_counts',
     userMints: 'thesis_vault_user_mints',
     userData: 'thesis_vault_user_data',
@@ -56,31 +56,31 @@ class DataManager {
 
   // Thesis Management
   saveThesis(thesis: ThesisData): void {
-    const theses = this.getAllTheses();
-    const existingIndex = theses.findIndex(t => t.id === thesis.id);
+    const thesisVault = this.getAllThesis();
+    const existingIndex = thesisVault.findIndex(t => t.id === thesis.id);
     
     if (existingIndex >= 0) {
-      theses[existingIndex] = thesis;
+      thesisVault[existingIndex] = thesis;
     } else {
-      theses.push(thesis);
+      thesisVault.push(thesis);
     }
     
-    localStorage.setItem(this.storageKeys.theses, JSON.stringify(theses));
-    this.updateUserData(thesis.walletAddress, { totalThesesPosted: this.getUserTheses(thesis.walletAddress).length });
+    localStorage.setItem(this.storageKeys.thesis, JSON.stringify(thesisVault));
+    this.updateUserData(thesis.walletAddress, { totalThesesPosted: this.getUserThesis(thesis.walletAddress).length });
   }
 
-  getAllTheses(): ThesisData[] {
-    const stored = localStorage.getItem(this.storageKeys.theses);
+  getAllThesis(): ThesisData[] {
+    const stored = localStorage.getItem(this.storageKeys.thesis);
     if (!stored) return [];
     
-    return JSON.parse(stored).map((thesis: any) => ({
+    return JSON.parse(stored).map((thesis: ThesisData) => ({
       ...thesis,
       postedAt: new Date(thesis.postedAt)
     }));
   }
 
-  getUserTheses(walletAddress: string): ThesisData[] {
-    return this.getAllTheses().filter(thesis => thesis.walletAddress === walletAddress);
+  getUserThesis(walletAddress: string): ThesisData[] {
+    return this.getAllThesis().filter(thesis => thesis.walletAddress === walletAddress);
   }
 
   // Mint Management
@@ -108,7 +108,7 @@ class DataManager {
     const allUserMints = JSON.parse(localStorage.getItem(this.storageKeys.userMints) || '{}');
     const userMints = allUserMints[walletAddress] || [];
     
-    return userMints.map((mint: any) => ({
+    return userMints.map((mint: MintRecord) => ({
       ...mint,
       mintedAt: new Date(mint.mintedAt)
     }));
@@ -158,12 +158,12 @@ class DataManager {
 
   // Analytics and Statistics
   getGlobalStats() {
-    const allTheses = this.getAllTheses();
+    const allThesis = this.getAllThesis();
     const mintCounts = this.getMintCounts();
     const totalMints = Object.values(mintCounts).reduce((sum, count) => sum + count, 0);
     
     return {
-      totalTheses: allTheses.length,
+      totalTheses: allThesis.length,
       totalMints,
       activeUsers: Object.keys(JSON.parse(localStorage.getItem(this.storageKeys.userData) || '{}')).length,
       totalVolume: totalMints * 0.04 // Assuming 0.04 CORE per mint average
@@ -176,8 +176,8 @@ class DataManager {
     const stats = this.getGlobalStats();
     if (stats.totalTheses > 0 && Math.random() < 0.1) {
       // Randomly add a mint to a random thesis
-      const allTheses = this.getAllTheses();
-      const randomThesis = allTheses[Math.floor(Math.random() * allTheses.length)];
+      const allThesis = this.getAllThesis();
+      const randomThesis = allThesis[Math.floor(Math.random() * allThesis.length)];
       const fakeWallet = `0x${Math.random().toString(16).substr(2, 40)}`;
       
       this.recordMint(fakeWallet, {

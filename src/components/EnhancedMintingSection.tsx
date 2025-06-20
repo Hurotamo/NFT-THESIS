@@ -30,7 +30,7 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
   const { mintNFT, getUserNFTs, getTotalStaked, hasDiscountEligibility } = useContracts();
   
   const { 
-    theses, 
+    thesis, 
     mintCounts, 
     isLoading, 
     refreshData, 
@@ -188,6 +188,9 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
     );
   }
 
+  // Defensive default for thesis
+  const thesisList = Array.isArray(thesis) ? thesis : [];
+
   return (
     <div className="min-h-screen py-20 px-4">
       <div className="max-w-6xl mx-auto">
@@ -220,7 +223,7 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
         >
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
             <div>
-              <p className="text-2xl font-bold text-white">{theses.length}</p>
+              <p className="text-2xl font-bold text-white">{thesisList.length}</p>
               <p className="text-sm text-gray-400">Available Theses</p>
             </div>
             <div>
@@ -252,7 +255,7 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
           >
             <h3 className="text-2xl font-bold text-white mb-4">Available Theses</h3>
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {theses.map((thesis: any) => (
+              {thesisList.map((thesis: any) => (
                 <motion.div
                   key={thesis.id}
                   whileHover={{ scale: 1.02 }}

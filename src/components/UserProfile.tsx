@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { User, FileText, Coins, TrendingUp, Calendar, Activity, BarChart3 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useContracts } from '../hooks/useContracts';
+import { MintedNFT } from '../services/nftContractService';
 
 interface UserProfileProps {
   walletAddress: string;
@@ -10,8 +11,7 @@ interface UserProfileProps {
 
 const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
   const [activeTab, setActiveTab] = useState<'student' | 'investor'>('student');
-  const [userNFTs, setUserNFTs] = useState<any[]>([]);
-  const [userMints, setUserMints] = useState<any[]>([]);
+  const [userNFTs, setUserNFTs] = useState<MintedNFT[]>([]);
   const [totalStaked, setTotalStaked] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
@@ -27,7 +27,6 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
         const staked = await getTotalStaked();
         if (isMounted) {
           setUserNFTs(nfts);
-          setUserMints(nfts); // Assuming minted NFTs are the same as user NFTs for now
           setTotalStaked(staked);
           setLastUpdate(new Date());
         }
@@ -61,10 +60,10 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
   }
 
   // Example stats (replace with real calculations as needed)
-  const totalThesesPosted = userNFTs.length;
+  const totalThesisPosted = userNFTs.length;
   const totalMints = userNFTs.length;
   const totalEarnings = totalMints * 0.04; // 0.04 CORE per mint
-  const totalSpent = userMints.reduce((sum, mint) => sum + (mint.cost || 0), 0);
+  const totalSpent = 0; // No userMints, so totalSpent is 0
 
   return (
     <div className="min-h-screen py-20 px-4">
@@ -97,7 +96,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
         >
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div>
-              <p className="text-2xl font-bold text-white">{totalThesesPosted}</p>
+              <p className="text-2xl font-bold text-white">{totalThesisPosted}</p>
               <p className="text-sm text-gray-400">Total Theses</p>
             </div>
             <div>
@@ -159,7 +158,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
                     <FileText className="h-4 w-4 text-blue-400" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-white">{totalThesesPosted}</div>
+                    <div className="text-2xl font-bold text-white">{totalThesisPosted}</div>
                     <p className="text-xs text-gray-500 mt-1">
                       {/* Add joined date if available */}
                     </p>
@@ -202,7 +201,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold text-white">
-                      {totalThesesPosted > 0 ? (totalMints / totalThesesPosted).toFixed(1) : '0'}
+                      {totalThesisPosted > 0 ? (totalMints / totalThesisPosted).toFixed(1) : '0'}
                     </div>
                   </CardContent>
                 </Card>
@@ -233,10 +232,10 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
                         >
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
-                              <h4 className="text-white font-semibold text-lg mb-2">{nft.title || nft.tokenId}
-                                {nft.ipfsHash && (
+                              <h4 className="text-white font-semibold text-lg mb-2">{nft.metadata.title || nft.tokenId}
+                                {nft.metadata.ipfsHash && (
                                   <a
-                                    href={`https://gateway.pinata.cloud/ipfs/${nft.ipfsHash}`}
+                                    href={`https://gateway.pinata.cloud/ipfs/${nft.metadata.ipfsHash}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-blue-400 underline ml-2 text-xs"
@@ -248,16 +247,16 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
                               <div className="flex items-center gap-4 text-sm text-gray-400 mb-2">
                                 <span className="flex items-center gap-1">
                                   <User className="w-4 h-4" />
-                                  {nft.author || ''}
+                                  {nft.metadata.author || ''}
                                 </span>
                                 <span className="flex items-center gap-1">
                                   <Calendar className="w-4 h-4" />
-                                  {nft.year || ''}
+                                  {nft.metadata.year || ''}
                                 </span>
                               </div>
-                              <p className="text-gray-300 text-sm mb-2">{nft.university || ''} • {nft.field || ''}</p>
-                              {nft.description && (
-                                <p className="text-gray-400 text-sm">{nft.description}</p>
+                              <p className="text-gray-300 text-sm mb-2">{nft.metadata.university || ''} • {nft.metadata.field || ''}</p>
+                              {nft.metadata.description && (
+                                <p className="text-gray-400 text-sm">{nft.metadata.description}</p>
                               )}
                             </div>
                             <div className="text-right ml-4">
@@ -296,9 +295,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
                     <Coins className="h-4 w-4 text-purple-400" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-white">{userMints.length}</div>
+                    <div className="text-2xl font-bold text-white">{userNFTs.length}</div>
                     <p className="text-xs text-purple-400 mt-1">
-                      Portfolio value: {(userMints.length * 0.05).toFixed(2)} CORE
+                      Portfolio value: {(userNFTs.length * 0.05).toFixed(2)} CORE
                     </p>
                   </CardContent>
                 </Card>
@@ -322,11 +321,11 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
                 <CardHeader>
                   <CardTitle className="text-white flex items-center gap-3">
                     <Coins className="w-5 h-5" />
-                    Your Minting History ({userMints.length})
+                    Your Minting History ({userNFTs.length})
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {userMints.length === 0 ? (
+                  {userNFTs.length === 0 ? (
                     <div className="text-center py-12">
                       <Coins className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                       <p className="text-gray-400 text-lg">No NFTs minted yet</p>
@@ -343,10 +342,10 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
                         >
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
-                              <h4 className="text-white font-semibold">{mint.title || mint.tokenId}
-                                {mint.ipfsHash && (
+                              <h4 className="text-white font-semibold">{mint.metadata.title || mint.tokenId}
+                                {mint.metadata.ipfsHash && (
                                   <a
-                                    href={`https://gateway.pinata.cloud/ipfs/${mint.ipfsHash}`}
+                                    href={`https://gateway.pinata.cloud/ipfs/${mint.metadata.ipfsHash}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-blue-400 underline ml-2 text-xs"
@@ -371,7 +370,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
                                   <span className="text-xs text-blue-400">Content will unlock after auction completion</span>
                                 </div>
                               ) : (
-                                <div className="text-green-400 text-sm mt-3">Full content unlocked! <a href={`https://ipfs.io/ipfs/${mint.ipfsHash}`} target="_blank" rel="noopener noreferrer" className="underline">View File</a></div>
+                                <div className="text-green-400 text-sm mt-3">Full content unlocked! <a href={`https://ipfs.io/ipfs/${mint.metadata.ipfsHash}`} target="_blank" rel="noopener noreferrer" className="underline">View File</a></div>
                               )}
                             </div>
                             <div className="text-right ml-4">
