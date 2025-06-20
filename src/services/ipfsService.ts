@@ -15,6 +15,18 @@ export interface UploadFeeStructure {
   allowedTypes: string[];
 }
 
+export interface ThesisMeta {
+  title: string;
+  description: string;
+  author: string;
+  university: string;
+  year: string;
+  field: string;
+  postedAt: string;
+  walletAddress: string;
+  [key: string]: unknown;
+}
+
 export class IPFSService {
   private static instance: IPFSService;
   private uploadFees: UploadFeeStructure = {
@@ -132,14 +144,29 @@ export async function uploadToIPFSWithPinata(file: File): Promise<{ hash: string
  * Upload a file to IPFS and then register it on-chain with the NFT contract (enforcing fee and size)
  * @param file The file to upload
  * @param mintPrice The mint price in CORE
+ * @param thesisMeta Optional thesis metadata
  * @returns The IPFS upload result and the contract transaction receipt
  */
-export async function uploadFileAndRegisterOnChain(file: File, mintPrice: string): Promise<{ ipfs: IPFSUploadResult, txReceipt: ethers.providers.TransactionReceipt }> {
+export async function uploadFileAndRegisterOnChain(
+  file: File,
+  mintPrice: string,
+  thesisMeta?: ThesisMeta
+): Promise<{ ipfs: IPFSUploadResult; txReceipt: import('ethers').providers.TransactionReceipt }> {
   const ipfsService = IPFSService.getInstance();
   const nftService = NFTContractService.getInstance();
   // Upload to IPFS
   const ipfs = await ipfsService.uploadToIPFS(file);
   // Register on-chain (enforce fee/size and mint price)
   const txReceipt = await nftService.uploadFileToContract(ipfs.hash, ipfs.size, mintPrice);
+
+  // Send metadata to backend for global visibility
+  if (thesisMeta) {
+    await fetch('http://localhost:4000/api/thesis-metadata', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...thesisMeta, ipfsHash: ipfs.hash }),
+    });
+  }
+
   return { ipfs, txReceipt };
 }

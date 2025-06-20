@@ -97,7 +97,17 @@ const ThesisUpload: React.FC<ThesisUploadProps> = ({ walletAddress, onUploadSucc
 
     try {
       // Upload to IPFS and register on-chain
-      const { ipfs, txReceipt } = await uploadFileAndRegisterOnChain(file, mintPrice);
+      const thesisMeta = {
+        title,
+        description,
+        author,
+        university,
+        year,
+        field,
+        postedAt: new Date().toISOString(),
+        walletAddress
+      };
+      const { ipfs, txReceipt } = await uploadFileAndRegisterOnChain(file, mintPrice, thesisMeta);
 
       const newThesis: ThesisData = {
         id: Math.random().toString(36).substr(2, 9),

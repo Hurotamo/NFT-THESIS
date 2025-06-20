@@ -11,6 +11,11 @@ const FormData = require('form-data');
 const fs = require('fs');
 const axios = require('axios');
 const ethers = require('ethers');
+const METADATA_FILE = './thesis-metadata.json';
+const fsPromises = require('fs').promises;
+const { MongoClient } = require('mongodb');
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017';
+const DB_NAME = process.env.DB_NAME || 'nft_thesis';
 
 // Use environment variables for credentials
 const pinata = new pinataSDK(
@@ -33,6 +38,17 @@ app.use(cors());
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection:', reason);
 });
+
+let db;
+MongoClient.connect(MONGO_URI, { useUnifiedTopology: true })
+  .then(client => {
+    db = client.db(DB_NAME);
+    console.log('Connected to MongoDB');
+  })
+  .catch(err => {
+    console.error('MongoDB connection error:', err);
+    process.exit(1);
+  });
 
 // Pinata IPFS upload endpoint
 app.post('/api/upload-ipfs', upload.single('file'), async (req, res) => {
@@ -59,12 +75,29 @@ app.post('/api/upload-ipfs', upload.single('file'), async (req, res) => {
   }
 });
 
-// GET /api/all-files - fetch all uploaded files from the smart contract
+// Save thesis metadata (called after upload)
+app.post('/api/thesis-metadata', async (req, res) => {
+  try {
+    const thesis = req.body;
+    if (!thesis || !thesis.ipfsHash) {
+      return res.status(400).json({ error: 'Missing thesis metadata or ipfsHash' });
+    }
+    await db.collection('theses').updateOne(
+      { ipfsHash: thesis.ipfsHash },
+      { $set: { ...thesis, timestamp: Date.now() } },
+      { upsert: true }
+    );
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Update /api/all-files to return all metadata from MongoDB
 app.get('/api/all-files', async (req, res) => {
   try {
-    const files = await fileRegistry.getAllFiles();
-    // files is an array of structs: { uploader, ipfsHash, fileName, timestamp }
-    res.json(files);
+    const all = await db.collection('theses').find({}).toArray();
+    res.json(all);
   } catch (err) {
     console.error('Fetch all files error:', err);
     res.status(500).json({ error: err.message });

@@ -2,18 +2,27 @@ import { useState, useEffect, useCallback } from 'react';
 import DataManager from '../utils/dataManager';
 import axios from 'axios';
 
-interface RealTimeData {
-  thesis: any[];
-  mintCounts: { [key: string]: number };
-  globalStats: any;
-  lastUpdate: Date;
-}
-
 interface FileInfo {
   uploader: string;
   ipfsHash: string;
   fileName: string;
   timestamp: number;
+  title?: string;
+  description?: string;
+  author?: string;
+  university?: string;
+  year?: string;
+  field?: string;
+  postedAt?: string;
+  walletAddress?: string;
+  tags?: string[];
+}
+
+interface RealTimeData {
+  thesis: FileInfo[];
+  mintCounts: Record<string, number>;
+  globalStats: Record<string, unknown>;
+  lastUpdate: Date;
 }
 
 export const useRealTimeUpdates = (walletAddress?: string) => {
@@ -28,14 +37,14 @@ export const useRealTimeUpdates = (walletAddress?: string) => {
 
   const dataManager = DataManager.getInstance();
 
-  const refreshData = useCallback(() => {
-    const newData = {
-      thesis: dataManager.getAllThesis(),
+  // Only refresh stats, not thesis list
+  const refreshStats = useCallback(() => {
+    setData(prev => ({
+      ...prev,
       mintCounts: dataManager.getMintCounts(),
       globalStats: dataManager.getGlobalStats(),
       lastUpdate: new Date()
-    };
-    setData(newData);
+    }));
     setIsLoading(false);
   }, [dataManager]);
 
@@ -60,20 +69,19 @@ export const useRealTimeUpdates = (walletAddress?: string) => {
   };
 
   useEffect(() => {
-    // Initial load
-    refreshData();
+    // Initial load: fetch all files from backend
+    fetchAllFiles();
 
-    // Set up real-time updates every 3 seconds
+    // Set up real-time stats updates every 3 seconds
     const interval = setInterval(() => {
-      // Simulate some background activity
       dataManager.simulateActivity();
-      refreshData();
+      refreshStats();
     }, 3000);
 
-    // Listen for storage changes from other tabs
+    // Listen for storage changes from other tabs (for stats only)
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key?.startsWith('thesis_vault_')) {
-        refreshData();
+        refreshStats();
       }
     };
 
@@ -83,7 +91,7 @@ export const useRealTimeUpdates = (walletAddress?: string) => {
       clearInterval(interval);
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [refreshData]);
+  }, [refreshStats]);
 
   useEffect(() => {
     fetchAllFiles();
@@ -109,7 +117,7 @@ export const useRealTimeUpdates = (walletAddress?: string) => {
   return {
     ...data,
     isLoading,
-    refreshData,
+    refreshStats,
     getUserThesis,
     getUserMints,
     getUserData,
