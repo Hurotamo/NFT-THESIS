@@ -1,5 +1,8 @@
 import { NFTContractService } from './nftContractService';
 import { ethers } from 'ethers';
+import { ThesisInfo } from "@/components/form/ThesisInfoForm";
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 export interface IPFSUploadResult {
   hash: string;
@@ -110,35 +113,76 @@ export class IPFSService {
   }
 }
 
-export async function postThesisAndDeployContract(thesisData: any): Promise<string | null> {
+export const postThesis = async (thesisInfo: ThesisInfo, setIsLoading: (isLoading: boolean) => void, setStatus: (status: { success: boolean; message: string }) => void) => {
   try {
-    const response = await fetch('http://localhost:4000/api/post-thesis', {
+    console.log('Starting thesis submission process...');
+    console.log('Thesis Info:', thesisInfo);
+
+    const response = await fetch(`${API_URL}/post-thesis`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(thesisData),
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(thesisInfo),
     });
     const data = await response.json();
     if (data.success && data.contractAddress) {
+      setStatus({ success: true, message: `Thesis submitted successfully. Contract address: ${data.contractAddress}` });
       return data.contractAddress;
     }
+    setStatus({ success: false, message: 'Thesis submission failed. No contract address returned.' });
     return null;
   } catch (error) {
-    console.error('Failed to post thesis and deploy contract:', error);
+    console.error('Submission failed:', error);
+    setStatus({ success: false, message: `Submission failed: ${error instanceof Error ? error.message : String(error)}` });
     return null;
   }
-}
+};
 
-export async function uploadToIPFSWithPinata(file: File): Promise<{ hash: string; url: string; size: number; fileName: string }> {
-  const data = new FormData();
-  data.append('file', file);
+export const uploadToIPFS = async (file: File, setIsLoading: (isLoading: boolean) => void, setStatus: (status: { success: boolean; message: string }) => void): Promise<{ cid: string; ipfsUrl: string } | null> => {
+  setIsLoading(true);
+  try {
+    console.log('Starting thesis upload process...');
+    const formData = new FormData();
+    formData.append('thesisFile', file);
 
-  const response = await fetch('http://localhost:4000/api/upload-ipfs', {
-    method: 'POST',
-    body: data,
-  });
-  if (!response.ok) throw new Error('IPFS upload failed');
-  return await response.json();
-}
+    const response = await fetch(`${API_URL}/upload-ipfs`, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) throw new Error('IPFS upload failed');
+    const data = await response.json();
+    setStatus({ success: true, message: `Thesis uploaded successfully. IPFS CID: ${data.cid}, IPFS URL: ${data.ipfsUrl}` });
+    return data;
+  } catch (error) {
+    console.error('Upload failed:', error);
+    setStatus({ success: false, message: `Upload failed: ${error instanceof Error ? error.message : String(error)}` });
+    return null;
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+export const saveThesisMetadata = async (metadata: any, setIsLoading: (isLoading: boolean) => void, setStatus: (status: { success: boolean; message: string }) => void) => {
+  setIsLoading(true);
+  try {
+    console.log('Saving thesis metadata...');
+    await fetch(`${API_URL}/thesis-metadata`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(metadata),
+    });
+    setStatus({ success: true, message: 'Thesis metadata saved successfully' });
+  } catch (error) {
+    console.error('Metadata save failed:', error);
+    setStatus({ success: false, message: `Metadata save failed: ${error instanceof Error ? error.message : String(error)}` });
+  } finally {
+    setIsLoading(false);
+  }
+};
 
 /**
  * Upload a file to IPFS and then register it on-chain with the NFT contract (enforcing fee and size)
@@ -161,11 +205,7 @@ export async function uploadFileAndRegisterOnChain(
 
   // Send metadata to backend for global visibility
   if (thesisMeta) {
-    await fetch('http://localhost:4000/api/thesis-metadata', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...thesisMeta, ipfsHash: ipfs.hash }),
-    });
+    await saveThesisMetadata(thesisMeta, () => {}, () => {});
   }
 
   return { ipfs, txReceipt };
