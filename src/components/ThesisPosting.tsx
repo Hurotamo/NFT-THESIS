@@ -11,7 +11,7 @@ import {
   type IPFSFileReference 
 } from '../utils/fileNaming';
 import DataManager from '../utils/dataManager';
-import { IPFSService, postThesis, uploadToIPFS } from '../services/ipfsService';
+import { IPFSService, postThesis, uploadToIPFS, saveThesisMetadata } from '../services/ipfsService';
 import { ethers } from "ethers";
 import ThesisNFTAbi from '../../core-contract/artifacts/contracts/Thesis-NFT.sol/ThesisNFT.json';
 
@@ -173,7 +173,10 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
       
       // Call backend to deploy contract
       const contractAddress = await postThesis(thesisData, setIsUploading, setStatus);
+
+      // After deploying, save the metadata to the database
       if (contractAddress) {
+        await saveThesisMetadata({ ...thesisData, contractAddress }, setIsUploading, setStatus);
         toast({
           title: "Contract Deployed!",
           description: `NFT contract deployed at: ${contractAddress}`,
