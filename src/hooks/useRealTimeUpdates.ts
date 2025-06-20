@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import DataManager from '../utils/dataManager';
+import { NFTContractService } from '../services/nftContractService';
 import axios from 'axios';
 
 interface FileInfo {
@@ -51,10 +52,54 @@ export const useRealTimeUpdates = (walletAddress?: string) => {
   const fetchAllFiles = async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get('/api/all-files');
+      // Get data from backend (MongoDB)
+      const backendRes = await axios.get('/api/all-files');
+      const backendData = backendRes.data;
+      
+      // Get data from smart contract
+      let contractData: FileInfo[] = [];
+      try {
+        const nftService = NFTContractService.getInstance();
+        const contractFiles = await nftService.getAllUploadedFiles();
+        
+        // Transform contract data to match backend format
+        contractData = contractFiles.map(file => ({
+          uploader: file.uploader,
+          ipfsHash: file.ipfsHash,
+          fileName: `thesis_${file.uploader.slice(0, 6)}_${Date.now()}.pdf`,
+          fileSize: file.fileSize.toString(),
+          feePaid: file.feePaid,
+          mintPrice: file.mintPrice,
+          timestamp: file.blockNumber,
+          title: `Thesis by ${file.uploader.slice(0, 6)}...${file.uploader.slice(-4)}`,
+          description: `Thesis uploaded by ${file.uploader}`,
+          author: file.uploader,
+          university: 'Unknown',
+          year: new Date().getFullYear().toString(),
+          field: 'General',
+          postedAt: new Date().toISOString(),
+          walletAddress: file.uploader,
+          source: 'contract'
+        }));
+      } catch (contractError) {
+        console.error('Error fetching from smart contract:', contractError);
+        // Continue with backend data only if contract fails
+      }
+      
+      // Merge backend and contract data, avoiding duplicates
+      const allData = [...backendData];
+      
+      // Add contract data that's not already in backend data
+      contractData.forEach(contractFile => {
+        const exists = allData.some(backendFile => backendFile.ipfsHash === contractFile.ipfsHash);
+        if (!exists) {
+          allData.push(contractFile);
+        }
+      });
+      
       setData(prevData => ({
         ...prevData,
-        thesis: res.data,
+        thesis: allData,
         lastUpdate: new Date()
       }));
     } catch (err) {

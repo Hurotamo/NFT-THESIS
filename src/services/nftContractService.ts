@@ -35,6 +35,7 @@ export interface MintedNFT {
 export class NFTContractService {
   private static instance: NFTContractService;
   private contract: ethers.Contract | null;
+  private provider: ethers.providers.Web3Provider | null = null;
   private walletAddress: string | null = null;
   private mintedNFTs: Map<string, MintedNFT[]> = new Map();
   private nftConfigs: Map<string, NFTMintingConfig> = new Map();
@@ -51,8 +52,8 @@ export class NFTContractService {
     this.walletAddress = walletAddress;
     // Set up ethers.js contract instance
     if (window.ethereum) {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
+      this.provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = this.provider.getSigner();
       // Import the ABI and contract address as needed
       const ThesisNFTAbi = (await import('../../core-contract/artifacts/contracts/Thesis-NFT.sol/ThesisNFT.json')).default.abi;
       const contractAddress = "0x660C6Bc195a5B12CF453FaCC4AbA419216C6fB24";
@@ -269,5 +270,56 @@ export class NFTContractService {
     }
     const [ipfsHash, fileSize, uploader] = await this.contract.getUploadedFile(userAddress);
     return { ipfsHash, fileSize: Number(fileSize), uploader };
+  }
+
+  /**
+   * Get all uploaded files from the smart contract by querying events
+   * @returns Array of uploaded file information
+   */
+  async getAllUploadedFiles(): Promise<Array<{
+    ipfsHash: string;
+    fileSize: number;
+    uploader: string;
+    feePaid: string;
+    mintPrice: string;
+    blockNumber: number;
+  }>> {
+    if (!this.contract) {
+      throw new Error("Contract not initialized");
+    }
+    if (!this.provider) {
+      throw new Error("Provider not initialized");
+    }
+
+    try {
+      // Get the latest block number
+      const latestBlock = await this.provider.getBlockNumber();
+      const fromBlock = Math.max(0, latestBlock - 10000); // Scan last 10000 blocks
+
+      // Query FileUploaded events
+      const fileUploadedEvents = await this.contract.queryFilter(
+        this.contract.filters.FileUploaded(),
+        fromBlock,
+        latestBlock
+      );
+
+      // Process events to extract file information
+      const uploadedFiles = fileUploadedEvents.map(event => {
+        const { uploader, ipfsHash, fileSize, feePaid, mintPrice } = event.args;
+        return {
+          ipfsHash,
+          fileSize: Number(fileSize),
+          uploader,
+          feePaid: feePaid.toString(),
+          mintPrice: mintPrice.toString(),
+          blockNumber: event.blockNumber
+        };
+      });
+
+      return uploadedFiles;
+    } catch (error) {
+      console.error('Error fetching uploaded files from contract:', error);
+      throw new Error('Failed to fetch uploaded files from contract');
+    }
   }
 }

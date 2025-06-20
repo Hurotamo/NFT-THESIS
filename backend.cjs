@@ -93,11 +93,125 @@ app.post('/api/thesis-metadata', async (req, res) => {
   }
 });
 
-// Update /api/all-files to return all metadata from MongoDB
+// Add a new endpoint to get all uploaded files from smart contract
+app.get('/api/contract-files', async (req, res) => {
+  try {
+    const thesisNFTABI = require('./core-contract/artifacts/contracts/Thesis-NFT.sol/ThesisNFT.json').abi;
+    const thesisNFTAddress = process.env.THESIS_NFT_ADDRESS;
+    
+    if (!thesisNFTAddress) {
+      return res.status(400).json({ error: 'THESIS_NFT_ADDRESS not configured' });
+    }
+    
+    const thesisNFTContract = new ethers.Contract(thesisNFTAddress, thesisNFTABI, provider);
+    
+    // Get the latest block number to scan for events
+    const latestBlock = await provider.getBlockNumber();
+    const fromBlock = Math.max(0, latestBlock - 10000); // Scan last 10000 blocks
+    
+    // Get FileUploaded events
+    const fileUploadedEvents = await thesisNFTContract.queryFilter(
+      thesisNFTContract.filters.FileUploaded(),
+      fromBlock,
+      latestBlock
+    );
+    
+    const contractFiles = [];
+    for (const event of fileUploadedEvents) {
+      const { uploader, ipfsHash, fileSize, feePaid, mintPrice } = event.args;
+      
+      contractFiles.push({
+        uploader: uploader,
+        ipfsHash: ipfsHash,
+        fileSize: fileSize.toString(),
+        feePaid: feePaid.toString(),
+        mintPrice: mintPrice.toString(),
+        timestamp: event.blockNumber,
+        title: `Thesis by ${uploader.slice(0, 6)}...${uploader.slice(-4)}`,
+        description: `Thesis uploaded by ${uploader}`,
+        author: uploader,
+        university: 'Unknown',
+        year: new Date().getFullYear().toString(),
+        field: 'General',
+        postedAt: new Date().toISOString(),
+        walletAddress: uploader,
+        source: 'contract',
+        blockNumber: event.blockNumber
+      });
+    }
+    
+    res.json(contractFiles);
+  } catch (err) {
+    console.error('Fetch contract files error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update /api/all-files to return all metadata from MongoDB and smart contract
 app.get('/api/all-files', async (req, res) => {
   try {
-    const all = await db.collection('theses').find({}).toArray();
-    res.json(all);
+    // Get data from MongoDB
+    const mongoData = await db.collection('theses').find({}).toArray();
+    
+    // Get data from smart contract (Thesis-NFT contract)
+    const thesisNFTABI = require('./core-contract/artifacts/contracts/Thesis-NFT.sol/ThesisNFT.json').abi;
+    const thesisNFTAddress = process.env.THESIS_NFT_ADDRESS;
+    
+    let contractData = [];
+    if (thesisNFTAddress) {
+      try {
+        const thesisNFTContract = new ethers.Contract(thesisNFTAddress, thesisNFTABI, provider);
+        
+        // Get the latest block number to scan for events
+        const latestBlock = await provider.getBlockNumber();
+        const fromBlock = Math.max(0, latestBlock - 10000); // Scan last 10000 blocks
+        
+        // Get FileUploaded events
+        const fileUploadedEvents = await thesisNFTContract.queryFilter(
+          thesisNFTContract.filters.FileUploaded(),
+          fromBlock,
+          latestBlock
+        );
+        
+        // Process each event to get file data
+        for (const event of fileUploadedEvents) {
+          const { uploader, ipfsHash, fileSize, feePaid, mintPrice } = event.args;
+          
+          // Check if this file is already in MongoDB
+          const existingInMongo = mongoData.find(item => item.ipfsHash === ipfsHash);
+          
+          if (!existingInMongo) {
+            // Add contract data that's not in MongoDB
+            contractData.push({
+              uploader: uploader,
+              ipfsHash: ipfsHash,
+              fileSize: fileSize.toString(),
+              feePaid: feePaid.toString(),
+              mintPrice: mintPrice.toString(),
+              timestamp: Date.now(),
+              // Add default metadata since we don't have it from the contract
+              title: `Thesis by ${uploader.slice(0, 6)}...${uploader.slice(-4)}`,
+              description: `Thesis uploaded by ${uploader}`,
+              author: uploader,
+              university: 'Unknown',
+              year: new Date().getFullYear().toString(),
+              field: 'General',
+              postedAt: new Date().toISOString(),
+              walletAddress: uploader,
+              source: 'contract'
+            });
+          }
+        }
+      } catch (contractError) {
+        console.error('Error fetching from smart contract:', contractError);
+        // Continue with MongoDB data only if contract fails
+      }
+    }
+    
+    // Merge MongoDB and contract data
+    const allData = [...mongoData, ...contractData];
+    
+    res.json(allData);
   } catch (err) {
     console.error('Fetch all files error:', err);
     res.status(500).json({ error: err.message });
