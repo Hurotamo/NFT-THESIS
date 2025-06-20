@@ -144,7 +144,7 @@ export const uploadToIPFS = async (file: File, setIsLoading: (isLoading: boolean
   try {
     console.log('Starting thesis upload process...');
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('thesisFile', file);
 
     const response = await fetch(`${API_URL}/upload-ipfs`, {
       method: 'POST',

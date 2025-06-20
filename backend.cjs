@@ -53,24 +53,23 @@ MongoClient.connect(MONGO_URI, { useUnifiedTopology: true })
   });
 
 // Pinata IPFS upload endpoint
-app.post('/api/upload-ipfs', upload.any(), async (req, res) => {
+app.post('/api/upload-ipfs', upload.single('thesisFile'), async (req, res) => {
   try {
-    const file = req.files && req.files.length > 0 ? req.files[0] : req.file;
-    if (!file) {
+    if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-    const stream = Readable.from(file.buffer);
+    const stream = Readable.from(req.file.buffer);
     const result = await pinata.pinFileToIPFS(stream, {
-      pinataMetadata: { name: file.originalname }
+      pinataMetadata: { name: req.file.originalname }
     });
     // Save file info to smart contract
-    const tx = await fileRegistry.uploadFile(result.IpfsHash, file.originalname);
+    const tx = await fileRegistry.uploadFile(result.IpfsHash, req.file.originalname);
     await tx.wait();
     res.json({
       hash: result.IpfsHash,
       url: `https://gateway.pinata.cloud/ipfs/${result.IpfsHash}`,
-      size: file.size,
-      fileName: file.originalname
+      size: req.file.size,
+      fileName: req.file.originalname
     });
   } catch (err) {
     console.error('Upload error:', err);
