@@ -1,10 +1,13 @@
-import { useContracts } from "../hooks/useContracts";
+import { useContracts } from "@/hooks/useContracts";
 
 export function useGovernanceService() {
   const { governance } = useContracts();
 
   // Example: add a method to call a governance function
   const propose = async (description: string, data: string, targetContract: string, overrides = {}) => {
+    if (!governance) {
+      throw new Error("Governance contract is not available.");
+    }
     return governance.propose(description, data, targetContract, overrides);
   };
 

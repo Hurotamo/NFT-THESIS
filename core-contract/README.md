@@ -61,3 +61,22 @@ There are two supported deployment flows:
 - If a script deploys a dependency (e.g., AuctionManager in ThesisNFT), use the address output from the script for subsequent deployments.
 - If you use the placeholder pattern, remember to call `setThesisNFT` on AuctionManager after both contracts are deployed.
 - The first contract to deploy is always **Staking**.
+
+## Prerequisites
+- Node.js (v16 or higher)
+- [Hardhat](https://hardhat.org/) for contract deployment/testing
+- Install dependencies:
+  ```bash
+  npm install
+  ```
+
+## Quick Links
+- **CORE Testnet Faucet:** [https://faucet.btcs.network/](https://faucet.btcs.network/)
+- **CORE Testnet Block Explorer:** [https://scan.test.btcs.network/](https://scan.test.btcs.network/)
+
+## Contributing
+- Use feature branches and submit Pull Requests for review.
+- Write clear commit messages and document major changes.
+- Update deployment/test scripts if contracts change.
+- Run tests before submitting changes.
+- For questions, open an issue or contact the maintainer.

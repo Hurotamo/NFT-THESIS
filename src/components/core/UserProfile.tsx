@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { User, FileText, Coins, TrendingUp, Calendar, Activity, BarChart3 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useContracts } from '../hooks/useContracts';
-import { MintedNFT } from '../services/nftContractService';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/cards/Card";
+import { useContracts } from '@/hooks/useContracts';
+import { MintedNFT, NFTContractService } from '@/services/nftContractService';
+import { useWeb3 } from "@/contexts/Web3Context";
+import { useToast } from "@/hooks/use-toast";
+import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
 
 interface UserProfileProps {
   walletAddress: string;
@@ -15,15 +18,16 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
   const [totalStaked, setTotalStaked] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-  const { getUserNFTs, getTotalStaked } = useContracts();
+  const { getTotalStaked } = useContracts();
 
   // Poll for real-time profile data
   useEffect(() => {
+    const nftService = NFTContractService.getInstance();
     let isMounted = true;
     const fetchProfileData = async () => {
       setIsLoading(true);
       try {
-        const nfts = await getUserNFTs();
+        const nfts = await nftService.getUserMintedNFTs();
         const staked = await getTotalStaked();
         if (isMounted) {
           setUserNFTs(nfts);
@@ -42,7 +46,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [getUserNFTs, getTotalStaked, walletAddress]);
+  }, [getTotalStaked, walletAddress]);
 
   if (isLoading) {
     return (
@@ -225,7 +229,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
                     <div className="space-y-4 max-h-96 overflow-y-auto">
                       {userNFTs.map((nft, idx) => (
                         <motion.div
-                          key={nft.id || idx}
+                          key={nft.tokenId || idx}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           className="bg-white/5 rounded-lg p-4 border border-white/10 hover:bg-white/10 transition-all"
@@ -333,9 +337,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
                     </div>
                   ) : (
                     <div className="space-y-4 max-h-96 overflow-y-auto">
-                      {userMints.map((mint, index) => (
+                      {userNFTs.map((mint, index) => (
                         <motion.div
-                          key={mint.id || index}
+                          key={mint.tokenId || index}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           className="bg-white/5 rounded-lg p-4 border border-white/10 hover:bg-white/10 transition-all"

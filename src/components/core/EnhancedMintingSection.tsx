@@ -1,40 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Upload, FileText, Coins, CheckCircle, AlertCircle, User, Calendar, BookOpen, Activity, TrendingUp, Lock, Eye, EyeOff } from 'lucide-react';
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/buttons/Button";
 import { useToast } from "@/hooks/use-toast";
-import { useRealTimeUpdates } from '../hooks/useRealTimeUpdates';
-import { useContracts } from '../hooks/useContracts';
-import { NFTMetadata, MintedNFT } from '../services/nftContractService';
-import { NFTContractService } from '../services/nftContractService';
+import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
+import { NFTMetadata, MintedNFT } from '@/services/nftContractService';
+import { NFTContractService } from '@/services/nftContractService';
+import { StakingService } from '@/services/stakingService';
 import { ethers } from 'ethers';
+
+interface ThesisInfo {
+  title?: string;
+  author?: string;
+  university?: string;
+  year?: string;
+  field?: string;
+  description?: string;
+  ipfsHash?: string;
+  tags?: string[];
+  metadataUri?: string;
+}
 
 interface EnhancedMintingSectionProps {
   walletAddress: string;
 }
 
 const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletAddress }) => {
-  const [selectedThesis, setSelectedThesis] = useState<{
-    id: string;
-    title: string;
-    author: string;
-    university: string;
-    year: number;
-    field: string;
-    description: string;
-    ipfsHash?: string;
-    tags?: string[];
-    metadataUri?: string;
-  } | null>(null);
+  const [selectedThesis, setSelectedThesis] = useState<ThesisInfo | null>(null);
   const [isMinting, setIsMinting] = useState(false);
   const { toast } = useToast();
-  const { mintNFT, getUserNFTs, getTotalStaked, hasDiscountEligibility } = useContracts();
   
   const { 
     thesis, 
     mintCounts, 
     isLoading, 
-    refreshData, 
+    refreshStats, 
     lastUpdate 
   } = useRealTimeUpdates();
 
@@ -47,13 +47,15 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
   const [txHash, setTxHash] = useState<string | null>(null);
 
   useEffect(() => {
+    const nftService = NFTContractService.getInstance();
+    const stakingService = StakingService.getInstance();
     const loadUserData = async () => {
       if (walletAddress) {
         try {
           const [staked, discount, nfts] = await Promise.all([
-            getTotalStaked(),
-            hasDiscountEligibility(),
-            getUserNFTs()
+            stakingService.getTotalStaked(),
+            stakingService.hasDiscountEligibility(),
+            nftService.getUserMintedNFTs()
           ]);
           
           setTotalStaked(staked);
@@ -66,13 +68,18 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
     };
 
     loadUserData();
-  }, [walletAddress, getTotalStaked, hasDiscountEligibility, getUserNFTs]);
+  }, [walletAddress]);
 
   // Fetch uploader and mint price when a thesis is selected
   useEffect(() => {
-    const fetchMintPrice = async () => {
-      if (!selectedThesis) return;
-      // Assume thesis.author is the uploader address (update if needed)
+    const fetchMintPrice = async (): Promise<void> => {
+      if (!selectedThesis?.author) {
+        setUploaderAddress(null);
+        setMintPrice('0');
+        setFinalCost('0');
+        return;
+      }
+      
       const uploader = selectedThesis.author;
       setUploaderAddress(uploader);
       try {
@@ -95,18 +102,7 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
     fetchMintPrice();
   }, [selectedThesis, totalStaked]);
 
-  const handleThesisSelect = (thesis: {
-    id: string;
-    title: string;
-    author: string;
-    university: string;
-    year: number;
-    field: string;
-    description: string;
-    ipfsHash?: string;
-    tags?: string[];
-    metadataUri?: string;
-  }) => {
+  const handleThesisSelect = (thesis: ThesisInfo) => {
     setSelectedThesis(thesis);
     toast({
       title: "Thesis Selected",
@@ -114,9 +110,9 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
     });
   };
 
-  const canUserMintThesis = (thesisId: string): boolean => {
+  const canUserMintThesis = (ipfsHash: string): boolean => {
     // Check if user has already minted this thesis
-    return !userMintedNFTs.some(nft => nft.metadata.title === selectedThesis?.title);
+    return !userMintedNFTs.some(nft => nft.metadata.ipfsHash === ipfsHash);
   };
 
   const handleMint = async () => {
@@ -128,14 +124,7 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
       });
       return;
     }
-    if (!canUserMintThesis(selectedThesis.id)) {
-      toast({
-        title: "Already Minted",
-        description: "You can only mint 1 NFT per thesis per wallet",
-        variant: "destructive",
-      });
-      return;
-    }
+    
     if (!selectedThesis.ipfsHash) {
       toast({
         title: "Missing Metadata URI",
@@ -144,6 +133,16 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
       });
       return;
     }
+    
+    if (!canUserMintThesis(selectedThesis.ipfsHash)) {
+      toast({
+        title: "Already Minted",
+        description: "You can only mint 1 NFT per thesis per wallet",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsMinting(true);
     setTxHash(null);
     try {
@@ -265,16 +264,16 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
           >
             <h3 className="text-2xl font-bold text-white mb-4">Available Theses</h3>
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {thesisList.map((thesis: any) => (
+              {thesisList.map((thesis: ThesisInfo) => (
                 <motion.div
-                  key={thesis.id}
+                  key={thesis.ipfsHash}
                   whileHover={{ scale: 1.02 }}
                   className={`backdrop-blur-md rounded-lg p-4 border cursor-pointer transition-all duration-200 ${
-                    selectedThesis?.id === thesis.id
+                    selectedThesis?.ipfsHash === thesis.ipfsHash
                       ? 'bg-blue-600/20 border-blue-400/50'
                       : 'bg-white/5 border-white/10 hover:border-white/20'
-                  } ${!canUserMintThesis(thesis.id) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  onClick={() => canUserMintThesis(thesis.id) && handleThesisSelect(thesis)}
+                  } ${!thesis.ipfsHash || !canUserMintThesis(thesis.ipfsHash) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={() => thesis.ipfsHash && canUserMintThesis(thesis.ipfsHash) && handleThesisSelect(thesis)}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -291,7 +290,7 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
                         </span>
                       </div>
                     </div>
-                    {!canUserMintThesis(thesis.id) && (
+                    {thesis.ipfsHash && !canUserMintThesis(thesis.ipfsHash) && (
                       <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
                     )}
                   </div>

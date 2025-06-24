@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useGovernanceService } from "../services/governanceService";
+import { useGovernanceService } from "@/services/governanceService";
 
 const GovernanceProposalButton: React.FC = () => {
   const { propose } = useGovernanceService();
@@ -14,8 +14,8 @@ const GovernanceProposalButton: React.FC = () => {
       const tx = await propose(description, data, targetContract);
       await tx.wait();
       alert("Proposal submitted!");
-    } catch (err: any) {
-      alert("Proposal failed: " + err.message);
+    } catch (error) {
+      alert("Proposal failed: " + (error as Error).message);
     }
     setLoading(false);
   };

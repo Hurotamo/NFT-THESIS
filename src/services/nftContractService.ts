@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESSES } from "@/config/contractAddresses";
-import { useContracts } from "../hooks/useContracts";
+import { useContracts } from "@/hooks/useContracts";
 
 export interface NFTMetadata {
   title: string;
@@ -30,11 +30,12 @@ export interface MintedNFT {
   mintedAt: Date;
   transactionHash: string;
   blurredContent?: string;
+  cost?: number;
 }
 
 export class NFTContractService {
   private static instance: NFTContractService;
-  private contract: ethers.Contract | null;
+  private contract: ethers.Contract | null = null;
   private provider: ethers.providers.Web3Provider | null = null;
   private walletAddress: string | null = null;
   private mintedNFTs: Map<string, MintedNFT[]> = new Map();
@@ -52,12 +53,11 @@ export class NFTContractService {
     this.walletAddress = walletAddress;
     // Set up ethers.js contract instance
     if (window.ethereum) {
-      this.provider = new ethers.providers.Web3Provider(window.ethereum);
+      this.provider = new ethers.providers.Web3Provider(window.ethereum as ethers.providers.ExternalProvider);
       const signer = this.provider.getSigner();
       // Import the ABI and contract address as needed
-      const ThesisNFTAbi = (await import('../../core-contract/artifacts/contracts/Thesis-NFT.sol/ThesisNFT.json')).default.abi;
-      const contractAddress = "0x84ac88b00dc5255F70077f824d2fF103B454C68A";
-      this.contract = new ethers.Contract(contractAddress, ThesisNFTAbi, signer);
+      const ThesisNFTAbi = (await import('@/abis/ThesisNFT.json')).default.abi;
+      this.contract = new ethers.Contract(CONTRACT_ADDRESSES.thesisNFT, ThesisNFTAbi, signer);
     }
   }
 
@@ -305,17 +305,22 @@ export class NFTContractService {
       );
 
       // Process events to extract file information
-      const uploadedFiles = fileUploadedEvents.map(event => {
-        const { uploader, ipfsHash, fileSize, feePaid, mintPrice } = event.args;
-        return {
-          ipfsHash,
-          fileSize: Number(fileSize),
-          uploader,
-          feePaid: feePaid.toString(),
-          mintPrice: mintPrice.toString(),
-          blockNumber: event.blockNumber
-        };
-      });
+      const uploadedFiles = fileUploadedEvents
+        .map(event => {
+          if (!event.args) {
+            return null;
+          }
+          const { uploader, ipfsHash, fileSize, feePaid, mintPrice } = event.args;
+          return {
+            ipfsHash,
+            fileSize: Number(fileSize),
+            uploader,
+            feePaid: feePaid.toString(),
+            mintPrice: mintPrice.toString(),
+            blockNumber: event.blockNumber
+          };
+        })
+        .filter((file): file is NonNullable<typeof file> => file !== null);
 
       return uploadedFiles;
     } catch (error) {
@@ -329,6 +334,9 @@ export function useNFTService() {
   const { thesisNFT } = useContracts();
 
   const mint = async (uploader: string, amount: number, overrides = {}) => {
+    if (!thesisNFT) {
+      throw new Error("ThesisNFT contract is not available.");
+    }
     return thesisNFT.mint(uploader, amount, overrides);
   };
 

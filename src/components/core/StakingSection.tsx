@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Coins, TrendingUp, Gift, AlertCircle, Lock, Unlock, Clock } from 'lucide-react';
-import { Button } from "@/components/ui/button";
+import { Coins, TrendingUp, Gift, AlertCircle, Lock, Unlock, Clock, CheckCircle, Info } from 'lucide-react';
+import { Button } from "@/components/buttons/Button";
 import { useToast } from "@/hooks/use-toast";
-import { useContracts } from '@/hooks/useContracts';
-import { useWeb3 } from '@/contexts/Web3Context';
-import { StakePosition } from '@/services/stakingService';
+import { StakingService, StakePosition } from '@/services/stakingService';
+import { ethers } from 'ethers';
 
 interface StakingSectionProps {
   walletAddress: string;
@@ -21,20 +20,19 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
   const [unlockTime, setUnlockTime] = useState<Date | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const { toast } = useToast();
-  const { stakeTokens, unstakeTokens, getTotalStaked, hasDiscountEligibility, getUserStakes } = useContracts();
-  const { isConnected } = useWeb3();
 
   const minimumStake = 3; // 3 tCORE2 for discount eligibility
   const availableBalance = 500; // Mock balance - in real app, get from wallet
 
   useEffect(() => {
+    const stakingService = StakingService.getInstance();
     const loadStakingData = async () => {
-      if (isConnected && walletAddress) {
+      if (walletAddress) {
         try {
           const [staked, discount, stakes] = await Promise.all([
-            getTotalStaked(),
-            hasDiscountEligibility(),
-            getUserStakes()
+            stakingService.getTotalStaked(),
+            stakingService.hasDiscountEligibility(),
+            stakingService.getUserStakes()
           ]);
           
           setTotalStaked(staked);
@@ -52,7 +50,7 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
     };
 
     loadStakingData();
-  }, [isConnected, walletAddress, getTotalStaked, hasDiscountEligibility, getUserStakes]);
+  }, [walletAddress]);
 
   // Update time remaining every second
   useEffect(() => {
@@ -106,13 +104,14 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
 
     setIsStaking(true);
     try {
-      const position = await stakeTokens(amount);
+      const stakingService = StakingService.getInstance();
+      const position = await stakingService.stakeTokens(amount);
       
       // Refresh data
       const [staked, discount, stakes] = await Promise.all([
-        getTotalStaked(),
-        hasDiscountEligibility(),
-        getUserStakes()
+        stakingService.getTotalStaked(),
+        stakingService.hasDiscountEligibility(),
+        stakingService.getUserStakes()
       ]);
       
       setTotalStaked(staked);
@@ -149,13 +148,14 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
 
     setIsUnstaking(true);
     try {
-      const result = await unstakeTokens();
+      const stakingService = StakingService.getInstance();
+      const result = await stakingService.unstakeTokens();
       
       // Refresh data
       const [staked, discount, stakes] = await Promise.all([
-        getTotalStaked(),
-        hasDiscountEligibility(),
-        getUserStakes()
+        stakingService.getTotalStaked(),
+        stakingService.hasDiscountEligibility(),
+        stakingService.getUserStakes()
       ]);
       
       setTotalStaked(staked);
@@ -182,7 +182,7 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
 
   const canUnstake = unlockTime && new Date() >= unlockTime;
 
-  if (!walletAddress || !isConnected) {
+  if (!walletAddress) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <motion.div

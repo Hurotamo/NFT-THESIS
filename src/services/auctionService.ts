@@ -50,7 +50,7 @@ export class AuctionService {
   }
 
   constructor() {
-    this.web3 = new Web3((window as unknown as { ethereum: unknown }).ethereum);
+    this.web3 = new Web3(window.ethereum as typeof Web3.givenProvider);
     this.contract = new this.web3.eth.Contract(
       ThesisAuctionABI.abi,
       CONTRACT_ADDRESSES.thesisAuction
