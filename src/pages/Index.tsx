@@ -2,16 +2,16 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Float, Center } from '@react-three/drei';
-import { Wallet, FileText, Coins, Gavel, Menu, X, Upload, User, AlertCircle, LogOut } from 'lucide-react';
+import { Wallet, FileText, Coins, Gavel, Menu, X, Upload, User, AlertCircle, LogOut, Bell } from 'lucide-react';
 import { Button } from "@/components/buttons/Button";
 import { useToast } from "@/hooks/use-toast";
 import { useWeb3 } from "@/contexts/Web3Context";
 import WalletConnect from "@/components/buttons/WalletConnect";
-import StakingSection from "@/components/core/StakingSection";
-import AuctionSection from "@/components/core/AuctionSection";
+import StakingSection from "../components/core/StakingSection";
+import AuctionSection from "../components/core/AuctionSection";
 import ThesisPosting from "@/components/core/ThesisPosting";
-import UserProfile from "@/components/core/UserProfile";
-import EnhancedMintingSection from "@/components/core/EnhancedMintingSection";
+import UserProfile from "../components/core/UserProfile";
+import EnhancedMintingSection from "../components/core/EnhancedMintingSection";
 import Footer from "@/components/layout/Footer";
 
 // 3D NFT Card Component
@@ -113,7 +113,6 @@ const Index = () => {
     currentAccount, 
     isConnected, 
     isCorrectNetwork, 
-    networkStatus,
     connectWallet, 
     disconnectWallet 
   } = useWeb3();
@@ -190,49 +189,17 @@ const Index = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.8 }}
                 >
-                  <h1 className="text-6xl md:text-8xl font-bold bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent mb-6">
-                    ThesisNFT
-                  </h1>
+                  <div className="relative inline-block mb-6">
+                    <span className="absolute -top-8 -left-8 text-6xl md:text-7xl select-none" style={{ pointerEvents: 'none' }}>
+                      🎓
+                    </span>
+                    <h1 className="text-6xl md:text-8xl font-bold bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent">
+                      ACADEME NFT
+                    </h1>
+                  </div>
                   <p className="text-xl md:text-2xl text-gray-300 mb-8 max-w-2xl mx-auto">
-                    A revolutionary platform where students post academic research and investors mint them as NFTs. Powered by Core blockchain technology.
+                    A revolutionary platform where students post academic research and investors mint them as NFTs.
                   </p>
-                  
-                  {!isConnected ? (
-                    <WalletConnect />
-                  ) : (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="space-y-4"
-                    >
-                      <div className="backdrop-blur-md bg-white/10 rounded-lg p-4 inline-block">
-                        <p className="text-green-400 font-semibold">
-                          Wallet Connected: {currentAccount?.slice(0, 6)}...{currentAccount?.slice(-4)}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-4 justify-center">
-                        <Button
-                          onClick={() => setActiveSection('post')}
-                          className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white px-8 py-3 rounded-lg font-semibold transform transition-all duration-200 hover:scale-105"
-                        >
-                          Post Your Thesis
-                        </Button>
-                        <Button
-                          onClick={() => setActiveSection('mint')}
-                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-3 rounded-lg font-semibold transform transition-all duration-200 hover:scale-105"
-                        >
-                          Mint NFTs
-                        </Button>
-                        <Button
-                          onClick={() => setActiveSection('stake')}
-                          variant="outline"
-                          className="border-white/20 text-white hover:bg-white/10 px-8 py-3 rounded-lg font-semibold"
-                        >
-                          Stake CORE
-                        </Button>
-                      </div>
-                    </motion.div>
-                  )}
                 </motion.div>
               </div>
             </section>
@@ -258,7 +225,7 @@ const Index = () => {
                   {[
                     {
                       icon: Upload,
-                      title: "Students Post Theses",
+                      title: "Students Post Thesis",
                       description: "Upload and share your academic research with metadata preservation on IPFS."
                     },
                     {
@@ -300,28 +267,12 @@ const Index = () => {
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center">
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                ThesisNFT
+                ACADEMENFT
               </h1>
             </div>
 
-            {/* Wallet Address Display with Logout */}
-            {isConnected && currentAccount && (
-              <div className="hidden md:flex items-center space-x-2">
-                <button
-                  onClick={handleWalletLogout}
-                  className="flex items-center space-x-2 px-4 py-2 bg-green-600/20 border border-green-400/30 text-green-400 rounded-lg hover:bg-green-600/30 transition-all duration-200 group"
-                >
-                  <Wallet className="w-4 h-4" />
-                  <span className="text-sm font-mono">
-                    {currentAccount.slice(0, 6)}...{currentAccount.slice(-4)}
-                  </span>
-                  <LogOut className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
-              </div>
-            )}
-
             {/* Desktop Navigation */}
-            <div className="hidden md:flex space-x-8">
+            <div className="hidden md:flex flex-1 justify-center space-x-8">
               {navigation.map((item) => (
                 <button
                   key={item.id}
@@ -338,6 +289,27 @@ const Index = () => {
               ))}
             </div>
 
+            {/* Notification Bell + Wallet/Connect/Profile Section */}
+            <div className="hidden md:flex items-center space-x-4">
+              <button className="relative p-2 rounded-full hover:bg-white/10 transition-colors" aria-label="Notifications">
+                <Bell className="w-6 h-6 text-white" />
+              </button>
+              {!isConnected ? (
+                <WalletConnect />
+              ) : (
+                <button
+                  onClick={handleWalletLogout}
+                  className="flex items-center space-x-2 px-4 py-2 bg-green-600/20 border border-green-400/30 text-green-400 rounded-lg hover:bg-green-600/30 transition-all duration-200 group"
+                >
+                  <Wallet className="w-4 h-4" />
+                  <span className="text-sm font-mono">
+                    {currentAccount?.slice(0, 6)}...{currentAccount?.slice(-4)}
+                  </span>
+                  <LogOut className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+              )}
+            </div>
+
             {/* Mobile Menu Button */}
             <div className="md:hidden flex items-center space-x-2">
               {/* Mobile Wallet Display */}
@@ -350,6 +322,7 @@ const Index = () => {
                   <LogOut className="w-3 h-3" />
                 </button>
               )}
+              {!isConnected && <WalletConnect />}
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className="p-2 rounded-lg hover:bg-white/10"

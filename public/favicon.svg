@@ -1,0 +1,10 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Graduation cap -->
+  <polygon points="32,10 60,22 32,34 4,22" fill="#222" />
+  <rect x="24" y="22" width="16" height="6" fill="#222" />
+  <!-- Tassel -->
+  <line x1="32" y1="10" x2="32" y2="22" stroke="#2196f3" stroke-width="2"/>
+  <circle cx="32" cy="25" r="2.5" fill="#2196f3"/>
+  <!-- Hand (stylized) -->
+  <path d="M12 38 Q20 44 32 44 Q44 44 52 38 Q54 40 52 42 Q44 48 32 48 Q20 48 12 42 Q10 40 12 38 Z" fill="none" stroke="#222" stroke-width="2"/>
+</svg> 
