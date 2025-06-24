@@ -1,6 +1,5 @@
 import { NFTContractService } from './nftContractService';
 import { ethers } from 'ethers';
-import { ThesisInfo } from "@/components/form/ThesisInfoForm";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -89,18 +88,8 @@ export class IPFSService {
   }
 
   async uploadToIPFS(file: File): Promise<IPFSUploadResult> {
-    // Simulate IPFS upload
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const mockHash = `Qm${Math.random().toString(36).substr(2, 44)}`;
-        resolve({
-          hash: mockHash,
-          url: `https://ipfs.io/ipfs/${mockHash}`,
-          size: file.size,
-          fileName: file.name
-        });
-      }, 2000);
-    });
+    // No mockHash, throw error to indicate not implemented
+    throw new Error('uploadToIPFS is not implemented.');
   }
 
   getUploadFee(fileSizeInBytes: number): number {
@@ -113,7 +102,7 @@ export class IPFSService {
   }
 }
 
-export const postThesis = async (thesisInfo: ThesisInfo, setIsLoading: (isLoading: boolean) => void, setStatus: (status: { success: boolean; message: string }) => void) => {
+export const postThesis = async (thesisInfo: unknown, setIsLoading: (isLoading: boolean) => void, setStatus: (status: { success: boolean; message: string }) => void) => {
   try {
     console.log('Starting thesis submission process...');
     console.log('Thesis Info:', thesisInfo);
@@ -164,7 +153,7 @@ export const uploadToIPFS = async (file: File, setIsLoading: (isLoading: boolean
   }
 };
 
-export const saveThesisMetadata = async (metadata: any, setIsLoading: (isLoading: boolean) => void, setStatus: (status: { success: boolean; message: string }) => void) => {
+export const saveThesisMetadata = async (metadata: unknown, setIsLoading: (isLoading: boolean) => void, setStatus: (status: { success: boolean; message: string }) => void) => {
   setIsLoading(true);
   try {
     console.log('Saving thesis metadata...');

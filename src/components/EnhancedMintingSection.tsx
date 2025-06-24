@@ -24,6 +24,7 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
     description: string;
     ipfsHash?: string;
     tags?: string[];
+    metadataUri?: string;
   } | null>(null);
   const [isMinting, setIsMinting] = useState(false);
   const { toast } = useToast();
@@ -104,6 +105,7 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
     description: string;
     ipfsHash?: string;
     tags?: string[];
+    metadataUri?: string;
   }) => {
     setSelectedThesis(thesis);
     toast({
@@ -134,11 +136,19 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
       });
       return;
     }
+    if (!selectedThesis.ipfsHash) {
+      toast({
+        title: "Missing Metadata URI",
+        description: "No IPFS metadata URI found for this thesis.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsMinting(true);
     setTxHash(null);
     try {
       const nftService = NFTContractService.getInstance();
-      const txReceipt = await nftService.mintNFTForUploader(uploaderAddress, totalStaked);
+      const txReceipt = await nftService.mintNFTForUploader(uploaderAddress, selectedThesis.ipfsHash, totalStaked);
       setTxHash(txReceipt.transactionHash);
       toast({
         title: "NFT Minted Successfully!",

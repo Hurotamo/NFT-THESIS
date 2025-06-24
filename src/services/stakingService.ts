@@ -1,6 +1,9 @@
 import Web3 from "web3";
-import contractAddresses from "../config/contractAddresses";
-import StakingABI from "../../core-contract/artifacts/contracts/Staking.sol/Staking.json";
+import { CONTRACT_ADDRESSES } from "../config/contractAddresses";
+import { useContracts } from "../hooks/useContracts";
+import StakingABI from '../abis/Staking.json';
+import type { Contract } from 'web3-eth-contract';
+import type { AbiItem } from 'web3-utils';
 
 export interface StakePosition {
   amount: number;
@@ -18,12 +21,11 @@ export interface StakingConfig {
 export class StakingService {
   private static instance: StakingService;
   private web3: Web3;
-  private contract: any;
+  private contract: Contract<AbiItem[]> | null = null;
   private walletAddress: string | null = null;
 
   private constructor() {
-    this.web3 = new Web3((window as any).ethereum);
-    this.contract = new this.web3.eth.Contract(StakingABI.abi, contractAddresses.staking);
+    this.web3 = new Web3((window as unknown as { ethereum: unknown }).ethereum);
   }
 
   public static getInstance(): StakingService {
@@ -35,6 +37,11 @@ export class StakingService {
 
   public setWalletAddress(address: string): void {
     this.walletAddress = address;
+    this.contract = new this.web3.eth.Contract(
+      StakingABI.abi,
+      CONTRACT_ADDRESSES.staking,
+      { from: address }
+    );
   }
 
   async stakeTokens(amount: number): Promise<StakePosition> {
@@ -44,7 +51,8 @@ export class StakingService {
 
     try {
       // Check minimum stake requirement (3 tCORE2)
-      const minimumStake = await this.contract.methods.minimumStake().call();
+      const minimumStakeRaw = await this.contract?.methods.minimumStake().call();
+      const minimumStake = minimumStakeRaw && typeof minimumStakeRaw === 'string' ? minimumStakeRaw : '0';
       const minimumStakeInCORE = Number(this.web3.utils.fromWei(minimumStake, 'ether'));
       
       if (amount < minimumStakeInCORE) {
@@ -58,12 +66,12 @@ export class StakingService {
       const amountInWei = this.web3.utils.toWei(amount.toString(), 'ether');
       
       // Call stake() with the value
-      const tx = await this.contract.methods
+      const tx = await this.contract!.methods
         .stake()
         .send({ 
           from: this.walletAddress,
           value: amountInWei,
-          gas: 200000,
+          gas: '200000',
           maxPriorityFeePerGas: this.web3.utils.toWei('1', 'gwei'),
           maxFeePerGas: this.web3.utils.toWei('2', 'gwei')
         });
@@ -93,11 +101,11 @@ export class StakingService {
     try {
       console.log('Attempting to unstake tokens');
       
-      const tx = await this.contract.methods
+      const tx = await this.contract!.methods
         .unstake()
         .send({ 
           from: this.walletAddress,
-          gas: 150000,
+          gas: '150000',
           maxPriorityFeePerGas: this.web3.utils.toWei('1', 'gwei'),
           maxFeePerGas: this.web3.utils.toWei('2', 'gwei')
         });
@@ -105,8 +113,8 @@ export class StakingService {
       console.log('Unstaking transaction:', tx);
 
       // Get the user's stake amount before unstaking
-      const userStake = await this.contract.methods.stakes(this.walletAddress).call();
-      const amount = Number(this.web3.utils.fromWei(userStake.amount, 'ether'));
+      const userStake: unknown = await this.contract?.methods.stakes(this.walletAddress).call();
+      const amount = isStakeObject(userStake) ? Number(this.web3.utils.fromWei(userStake.amount, 'ether')) : 0;
 
       return { amount };
     } catch (error) {
@@ -121,8 +129,11 @@ export class StakingService {
     }
     
     try {
-      const userStake = await this.contract.methods.stakes(this.walletAddress).call();
-      return Number(this.web3.utils.fromWei(userStake.amount, 'ether'));
+      const userStake: unknown = await this.contract?.methods.stakes(this.walletAddress).call();
+      if (isStakeObject(userStake)) {
+        return Number(this.web3.utils.fromWei(userStake.amount, 'ether'));
+      }
+      return 0;
     } catch (error) {
       console.error('Failed to get total staked:', error);
       return 0;
@@ -149,18 +160,24 @@ export class StakingService {
     }
     
     try {
-      const userStake = await this.contract.methods.stakes(this.walletAddress).call();
-      const stakeAmount = Number(this.web3.utils.fromWei(userStake.amount, 'ether'));
+      const userStake = (await this.contract!.methods.stakes(this.walletAddress).call()) as {
+        amount?: string;
+        unlockTime?: string;
+        hasStaked?: boolean;
+        stakeTime?: string;
+        isActive?: boolean;
+      } | null;
+      const amount = userStake && userStake.amount ? Number(this.web3.utils.fromWei(String(userStake.amount), 'ether')) : 0;
       
-      if (stakeAmount > 0 && userStake.hasStaked) {
-        const unlockTime = new Date(Number(userStake.unlockTime) * 1000);
+      if (userStake && amount > 0 && userStake.hasStaked) {
+        const unlockTime = userStake.unlockTime ? new Date(Number(userStake.unlockTime) * 1000) : new Date();
         const stakedAt = new Date(unlockTime.getTime() - 30 * 24 * 60 * 60 * 1000); // Calculate from unlock time
         
         const stake: StakePosition = {
-          amount: stakeAmount,
+          amount,
           stakedAt,
           unlockTime,
-          hasStaked: userStake.hasStaked
+          hasStaked: !!userStake.hasStaked
         };
         return [stake];
       }
@@ -177,8 +194,8 @@ export class StakingService {
     }
     
     try {
-      const userStake = await this.contract.methods.stakes(this.walletAddress).call();
-      if (userStake.hasStaked) {
+      const userStake: unknown = await this.contract?.methods.stakes(this.walletAddress).call();
+      if (isStakeObject(userStake)) {
         return new Date(Number(userStake.unlockTime) * 1000);
       }
       return null;
@@ -203,9 +220,10 @@ export class StakingService {
 
   async getStakingConfig(): Promise<StakingConfig> {
     try {
-      const minimumStake = await this.contract.methods.minimumStake().call();
-      const discountPercent = await this.contract.methods.discountPercent().call();
-      
+      const minimumStakeRaw = await this.contract?.methods.minimumStake().call();
+      const minimumStake = minimumStakeRaw && typeof minimumStakeRaw === 'string' ? minimumStakeRaw : '0';
+      const discountPercentRaw = await this.contract?.methods.discountPercent().call();
+      const discountPercent = discountPercentRaw && typeof discountPercentRaw === 'string' ? discountPercentRaw : '0';
       return {
         minimumStake: Number(this.web3.utils.fromWei(minimumStake, 'ether')),
         discountPercentage: Number(discountPercent),
@@ -220,4 +238,25 @@ export class StakingService {
       };
     }
   }
+}
+
+export function useStakingService() {
+  const { staking } = useContracts();
+
+  const stake = async (overrides = {}) => {
+    return staking.stake(overrides);
+  };
+
+  // Add more methods as needed...
+  return { stake };
+}
+
+function isStakeObject(obj: unknown): obj is { amount: string; unlockTime: string; hasStaked: boolean } {
+  if (typeof obj !== 'object' || obj === null) return false;
+  const o = obj as Record<string, unknown>;
+  return (
+    typeof o.amount === 'string' &&
+    typeof o.unlockTime === 'string' &&
+    typeof o.hasStaked === 'boolean'
+  );
 }

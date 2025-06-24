@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
-import contractAddresses from "@/config/contractAddresses";
-import ThesisNFTABI from "../../core-contract/artifacts/contracts/Thesis-NFT.sol/ThesisNFT.json";
+import { CONTRACT_ADDRESSES } from "@/config/contractAddresses";
+import { useContracts } from "../hooks/useContracts";
 
 export interface NFTMetadata {
   title: string;
@@ -221,12 +221,13 @@ export class NFTContractService {
   }
 
   /**
-   * Mint an NFT for a given uploader, using their mint price
+   * Mint an NFT for a given uploader, using their mint price and a per-token URI
    * @param uploader The uploader's address
+   * @param tokenURI The IPFS metadata URI for this NFT
    * @param stakedAmount The staked amount for discount (optional)
    * @returns The transaction receipt
    */
-  async mintNFTForUploader(uploader: string, stakedAmount: number = 0): Promise<ethers.providers.TransactionReceipt> {
+  async mintNFTForUploader(uploader: string, tokenURI: string, stakedAmount: number = 0): Promise<ethers.providers.TransactionReceipt> {
     if (!this.walletAddress) {
       throw new Error("Wallet address not set");
     }
@@ -242,8 +243,8 @@ export class NFTContractService {
     // Add platform fee (20%)
     const platformFee = effectivePrice.mul(20).div(100);
     const totalPrice = effectivePrice.add(platformFee);
-    // Call the mint function on the contract
-    const tx = await this.contract.mint(uploader, 1, { value: totalPrice });
+    // Call the mintWithURI function on the contract
+    const tx = await this.contract.mintWithURI(uploader, 1, tokenURI, { value: totalPrice });
     return await tx.wait();
   }
 
@@ -322,4 +323,15 @@ export class NFTContractService {
       throw new Error('Failed to fetch uploaded files from contract');
     }
   }
+}
+
+export function useNFTService() {
+  const { thesisNFT } = useContracts();
+
+  const mint = async (uploader: string, amount: number, overrides = {}) => {
+    return thesisNFT.mint(uploader, amount, overrides);
+  };
+
+  // Add more methods as needed...
+  return { mint };
 }
