@@ -45,6 +45,7 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
   const [mintPrice, setMintPrice] = useState<string>('0');
   const [finalCost, setFinalCost] = useState<string>('0');
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     const nftService = NFTContractService.getInstance();
@@ -199,6 +200,14 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
 
   // Defensive default for thesis
   const thesisList = Array.isArray(thesis) ? thesis : [];
+  const filteredThesisList = thesisList.filter((t: ThesisInfo) => {
+    const term = searchTerm.toLowerCase();
+    return (
+      (t.title && t.title.toLowerCase().includes(term)) ||
+      (t.author && t.author.toLowerCase().includes(term)) ||
+      (t.ipfsHash && t.ipfsHash.toLowerCase().includes(term))
+    );
+  });
 
   return (
     <div className="min-h-screen py-20 px-4">
@@ -209,10 +218,11 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
           className="text-center mb-12"
         >
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-            Enhanced NFT Minting
+            🎓 Thesis NFT Minting
           </h2>
           <p className="text-xl text-gray-400 max-w-2xl mx-auto mb-4">
-            Mint thesis NFTs with platform fees, staking discounts, and 1 NFT per wallet limit. NFTs are blurred until auction completion.
+            Support fellow researchers, students, and universities by minting unique Thesis NFTs — one NFT per ticker.<br />
+            <span className="inline-block mt-2">🔒 NFTs remain blurred until the auction concludes, adding excitement and exclusivity.</span>
           </p>
           <div className="flex items-center justify-center gap-4 text-sm text-gray-500">
             <div className="flex items-center gap-2">
@@ -232,7 +242,7 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
         >
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
             <div>
-              <p className="text-2xl font-bold text-white">{thesisList.length}</p>
+              <p className="text-2xl font-bold text-white">0</p>
               <p className="text-sm text-gray-400">Available Theses</p>
             </div>
             <div>
@@ -262,9 +272,18 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
             animate={{ opacity: 1, x: 0 }}
             className="space-y-4"
           >
-            <h3 className="text-2xl font-bold text-white mb-4">Available Theses</h3>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-4">
+              <h3 className="text-2xl font-bold text-white">Search Thesis</h3>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                placeholder="Search by title, author, or address..."
+                className="w-full md:w-80 px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-blue-400"
+              />
+            </div>
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {thesisList.map((thesis: ThesisInfo) => (
+              {filteredThesisList.map((thesis: ThesisInfo) => (
                 <motion.div
                   key={thesis.ipfsHash}
                   whileHover={{ scale: 1.02 }}
