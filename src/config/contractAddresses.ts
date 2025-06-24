@@ -1,8 +1,8 @@
-const contractAddresses = {
-  
-  staking: "0x497e707042EACa200f276821f03efc384A748f9b", 
-  thesisNFT: "0x6A9eC6f67a83819EF84b28CF2539e672FfeeA87c", 
-  thesisAuction: "0x01f28178E6ad6D10B97BC9FDd9588A7DA1a950BE" 
-};
-
-export default contractAddresses; 
+export const CONTRACT_ADDRESSES = {
+  staking: "0x827079c34F584d750eDbB1bFf3e633586BfCBe5D",
+  fileRegistry: "0x1681bDB124Bd82726A3BbD81f9259C46B056512b",
+  governance: "0xaC0C3fC3487a219325b47De41341A0667257dA77",
+  auctionManager: "0x9eFeE607a910Ae030076A3edB909E5b8d5ea4eE2",
+  thesisNFT: "0x128181A367C4FfB49F03A3619bF024C544026303",
+  thesisAuction: "0xB2b0d83fb7A182200C4B3ef757D5E3Fb69aA40ec",
+}; 

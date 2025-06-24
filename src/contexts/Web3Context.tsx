@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import Web3 from 'web3';
 import { useToast } from '@/hooks/use-toast';
-import contractAddresses from '../config/contractAddresses';
+import { CONTRACT_ADDRESSES } from '../config/contractAddresses';
 import StakingABI from '../../core-contract/artifacts/contracts/Staking.sol/Staking.json';
 import ThesisNFTABI from '../../core-contract/artifacts/contracts/Thesis-NFT.sol/ThesisNFT.json';
 import ThesisAuctionABI from '../../core-contract/artifacts/contracts/Thesis-Auction.sol/ThesisAuction.json';
@@ -65,17 +65,17 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Initialize contracts
       const stakingContract = new web3Instance.eth.Contract(
         StakingABI.abi,
-        contractAddresses.staking
+        CONTRACT_ADDRESSES.staking
       );
       
       const thesisNFTContract = new web3Instance.eth.Contract(
         ThesisNFTABI.abi,
-        contractAddresses.thesisNFT
+        CONTRACT_ADDRESSES.thesisNFT
       );
       
       const thesisAuctionContract = new web3Instance.eth.Contract(
         ThesisAuctionABI.abi,
-        contractAddresses.thesisAuction
+        CONTRACT_ADDRESSES.thesisAuction
       );
       
       setContracts({

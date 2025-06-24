@@ -1,7 +1,9 @@
 import Web3 from "web3";
-import contractAddresses from "../config/contractAddresses";
+import { CONTRACT_ADDRESSES } from "../config/contractAddresses";
 import ThesisAuctionABI from "../../core-contract/artifacts/contracts/Thesis-Auction.sol/ThesisAuction.json";
 import { NFTContractService, MintedNFT } from './nftContractService';
+import type { Contract } from 'web3-eth-contract';
+import type { AbiItem } from 'web3-utils';
 
 export interface AuctionConfig {
   startingPrice: number;
@@ -35,7 +37,7 @@ export interface Auction {
 export class AuctionService {
   private static instance: AuctionService;
   private web3: Web3;
-  private contract: any;
+  private contract: Contract<AbiItem[]>;
   private walletAddress: string | null = null;
   private auctions: Map<string, Auction> = new Map();
   private nftService = NFTContractService.getInstance();
@@ -48,10 +50,10 @@ export class AuctionService {
   }
 
   constructor() {
-    this.web3 = new Web3((window as any).ethereum);
+    this.web3 = new Web3((window as unknown as { ethereum: unknown }).ethereum);
     this.contract = new this.web3.eth.Contract(
       ThesisAuctionABI.abi,
-      contractAddresses.thesisAuction
+      CONTRACT_ADDRESSES.thesisAuction
     );
   }
 
