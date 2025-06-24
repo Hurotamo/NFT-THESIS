@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useFileRegistryService } from "../services/fileRegistryService";
+import { useFileRegistryService } from "@/services/fileRegistryService";
 
 const UploadFileButton: React.FC = () => {
   const { uploadFile } = useFileRegistryService();
@@ -34,8 +34,8 @@ const UploadFileButton: React.FC = () => {
       );
       await tx.wait();
       alert("File uploaded!");
-    } catch (err: any) {
-      alert("Upload failed: " + err.message);
+    } catch (error) {
+      alert("Upload failed: " + (error as Error).message);
     }
     setLoading(false);
   };

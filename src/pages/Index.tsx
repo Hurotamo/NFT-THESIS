@@ -3,17 +3,16 @@ import { motion } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Float, Center } from '@react-three/drei';
 import { Wallet, FileText, Coins, Gavel, Menu, X, Upload, User, AlertCircle, LogOut } from 'lucide-react';
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/buttons/Button";
 import { useToast } from "@/hooks/use-toast";
 import { useWeb3 } from "@/contexts/Web3Context";
-import WalletConnect from '../components/WalletConnect';
-import MintingSection from '../components/MintingSection';
-import StakingSection from '../components/StakingSection';
-import AuctionSection from '../components/AuctionSection';
-import ThesisPosting from '../components/ThesisPosting';
-import UserProfile from '../components/UserProfile';
-import EnhancedMintingSection from '../components/EnhancedMintingSection';
-import Footer from '../components/Footer';
+import WalletConnect from "@/components/buttons/WalletConnect";
+import StakingSection from "@/components/core/StakingSection";
+import AuctionSection from "@/components/core/AuctionSection";
+import ThesisPosting from "@/components/core/ThesisPosting";
+import UserProfile from "@/components/core/UserProfile";
+import EnhancedMintingSection from "@/components/core/EnhancedMintingSection";
+import Footer from "@/components/layout/Footer";
 
 // 3D NFT Card Component
 function FloatingNFT() {
@@ -98,6 +97,14 @@ function ThreeScene() {
   );
 }
 
+const sections = {
+  mint: EnhancedMintingSection,
+  stake: StakingSection,
+  auction: AuctionSection,
+  post: ThesisPosting,
+  profile: UserProfile,
+};
+
 const Index = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('home');
@@ -129,10 +136,18 @@ const Index = () => {
     setActiveSection('home');
   };
 
+  const handleThesisPosted = () => {
+    setActiveSection('mint');
+    toast({
+      title: "Thesis Posted!",
+      description: "Your thesis is now available for minting.",
+    });
+  };
+
   const renderActiveSection = () => {
     switch (activeSection) {
       case 'post':
-        return <ThesisPosting walletAddress={currentAccount || ''} />;
+        return <ThesisPosting walletAddress={currentAccount || ''} onThesisPosted={handleThesisPosted} />;
       case 'mint':
         return <EnhancedMintingSection walletAddress={currentAccount || ''} />;
       case 'stake':
@@ -183,7 +198,7 @@ const Index = () => {
                   </p>
                   
                   {!isConnected ? (
-                    <WalletConnect onConnect={handleWalletConnect} />
+                    <WalletConnect />
                   ) : (
                     <motion.div
                       initial={{ opacity: 0, scale: 0.9 }}

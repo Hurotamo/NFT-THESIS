@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Gavel, Clock, Shield, TrendingUp, AlertCircle, FileText, Users, DollarSign } from 'lucide-react';
-import { Button } from "@/components/ui/button";
+import { Gavel, TrendingUp, Tag, Clock, CheckCircle, AlertCircle, FileText, Users, DollarSign } from 'lucide-react';
+import { Button } from "@/components/buttons/Button";
 import { useToast } from "@/hooks/use-toast";
-import { useContracts } from '@/hooks/useContracts';
-import { Auction, Bid } from '@/services/auctionService';
+import { Auction, Bid, AuctionService } from '@/services/auctionService';
 
 interface AuctionSectionProps {
   walletAddress: string;
@@ -20,28 +19,31 @@ const AuctionSection: React.FC<AuctionSectionProps> = ({ walletAddress }) => {
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [userBids, setUserBids] = useState<{ auctionId: string; bid: Bid }[]>([]);
   const { toast } = useToast();
-  const {
-    getActiveAuctions,
-    getUserBids,
-    placeBid,
-    createAuction,
-    isConnected,
-    currentAccount,
-  } = useContracts();
 
   // Poll for real-time auction data
   useEffect(() => {
-    const fetchAuctions = () => {
-      const active = getActiveAuctions();
-      setAuctions(active);
-      if (walletAddress) {
-        setUserBids(getUserBids());
+    const auctionService = AuctionService.getInstance();
+    const fetchAuctions = async () => {
+      try {
+        const active = await auctionService.getActiveAuctions();
+        setAuctions(active);
+        if (walletAddress) {
+          const bids = await auctionService.getUserBids(walletAddress);
+          setUserBids(bids);
+        }
+      } catch (error) {
+        console.error("Failed to fetch auction data.", error);
+        toast({
+          title: "Error",
+          description: "Could not fetch auction data.",
+          variant: "destructive"
+        });
       }
     };
     fetchAuctions();
     const interval = setInterval(fetchAuctions, 180000);
     return () => clearInterval(interval);
-  }, [getActiveAuctions, getUserBids, walletAddress]);
+  }, [walletAddress, toast]);
 
   const handlePlaceBid = async (auctionId: string, minBid: number) => {
     const bidValue = bidAmount[auctionId];
@@ -64,14 +66,13 @@ const AuctionSection: React.FC<AuctionSectionProps> = ({ walletAddress }) => {
     }
     setIsBidding(prev => ({ ...prev, [auctionId]: true }));
     try {
-      const success = await placeBid(auctionId, bid);
-      if (success) {
-        toast({
-          title: "Bid Placed Successfully!",
-          description: `Your bid of ${bid} CORE has been placed and held in escrow`,
-        });
-        setBidAmount(prev => ({ ...prev, [auctionId]: '' }));
-      }
+      const auctionService = AuctionService.getInstance();
+      await auctionService.placeBid(auctionId, walletAddress, bid);
+      toast({
+        title: "Bid Placed Successfully!",
+        description: `Your bid of ${bid} CORE has been placed and held in escrow`,
+      });
+      setBidAmount(prev => ({ ...prev, [auctionId]: '' }));
     } catch (error) {
       toast({
         title: "Bid Failed",

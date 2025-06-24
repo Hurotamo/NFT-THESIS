@@ -1,28 +1,21 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Upload, FileText, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/buttons/Button";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  generateIPFSFileName, 
-  createFileReference, 
-  validateFile,
-  type FileMetadata,
-  type IPFSFileReference 
-} from '../utils/fileNaming';
-import DataManager from '../utils/dataManager';
-import { IPFSService, postThesis, uploadToIPFS, saveThesisMetadata } from '../services/ipfsService';
+import { IPFSService, uploadToIPFS } from "@/services/ipfsService";
 import { ethers } from "ethers";
-import ThesisNFTAbi from '../abis/ThesisNFT.json';
-import { CONTRACT_ADDRESSES } from '../config/contractAddresses';
+import ThesisNFTAbi from '@/abis/ThesisNFT.json';
+import { CONTRACT_ADDRESSES } from '@/config/contractAddresses';
 
 interface ThesisPostingProps {
   walletAddress: string;
+  onThesisPosted: () => void;
 }
 
 const contractAddress = CONTRACT_ADDRESSES.thesisNFT;
 
-const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
+const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress, onThesisPosted }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -126,7 +119,10 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
       const publicPreviewHash = ipfsResult.cid;
       const fullFileHash = ipfsResult.cid;
 
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      if (!window.ethereum) {
+        throw new Error("Wallet provider not found. Please install MetaMask.");
+      }
+      const provider = new ethers.providers.Web3Provider(window.ethereum as ethers.providers.ExternalProvider);
       const signer = provider.getSigner();
       const contract = new ethers.Contract(contractAddress, ThesisNFTAbi.abi, signer);
 
@@ -169,8 +165,10 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress }) => {
         description: `Transaction successful with hash: ${tx.hash}`,
       });
 
+      onThesisPosted();
+
     } catch (error) {
-      const e = error as any;
+      const e = error as { reason?: string; message?: string };
       console.error('Upload failed:', e);
       setUploadStatus('error');
       toast({

@@ -15,9 +15,12 @@ A decentralized platform for academic thesis minting and trading on CORE Blockch
 
 The platform is fully integrated with deployed smart contracts on CORE Blockchain Testnet:
 
-- **Staking Contract**: `0xec3E4D8430797665E217530fEE485925d9cf3285`
-- **ThesisNFT Contract**: `0x6DE1bC8eCe7009Dc97fD41591408A8777bd2f116`
-- **ThesisAuction Contract**: `0x01f28178E6ad6D10B97BC9FDd9588A7DA1a950BE`
+- **Staking Contract**: `0x827079c34F584d750eDbB1bFf3e633586BfCBe5D`
+- **FileRegistry Contract**: `0x1681bDB124Bd82726A3BbD81f9259C46B056512b`
+- **Governance Contract**: `0xaC0C3fC3487a219325b47De41341A0667257dA77`
+- **AuctionManager Contract**: `0x9eFeE607a910Ae030076A3edB909E5b8d5ea4eE2`
+- **ThesisNFT Contract**: `0x128181A367C4FfB49F03A3619bF024C544026303`
+- **ThesisAuction Contract**: `0xB2b0d83fb7A182200C4B3ef757D5E3Fb69aA40ec`
 
 ### Contract Features
 
@@ -210,3 +213,51 @@ For technical support or questions about the contracts, please refer to the proj
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Backend: Smart Contract Development & Deployment
+
+The smart contracts are located in the `core-contract/` directory. To develop or deploy contracts:
+
+### Prerequisites
+- Node.js (v16 or higher)
+- Install dependencies in `core-contract/`:
+  ```bash
+  cd core-contract
+  npm install
+  ```
+- [Hardhat](https://hardhat.org/) is used for contract deployment and testing.
+
+### Deployment Flow
+Deploy contracts in the following order (see `core-contract/README.md` for details):
+
+1. **Staking**: `npx hardhat run scripts/deployStaking.ts --network <network>`
+2. **FileRegistry**: `npx hardhat run scripts/deployFileRegistry.ts --network <network>`
+3. **Governance**: `npx hardhat run scripts/deployGovernance.ts --network <network>`
+4. **AuctionManager & ThesisNFT**: Use `deployThesis-NFT.ts` for automated linking, or deploy manually as needed.
+5. **ThesisAuction**: `npx hardhat run scripts/deployThesis-Auction.ts --network <network>`
+
+- Always update addresses in scripts as you deploy each contract.
+- See `core-contract/README.md` for full step-by-step instructions.
+
+### Running Tests
+From `core-contract/`:
+```bash
+npm test
+```
+
+---
+
+## Quick Links
+- **CORE Testnet Faucet:** [https://faucet.btcs.network/](https://faucet.btcs.network/)
+- **CORE Testnet Block Explorer:** [https://scan.test.btcs.network/](https://scan.test.btcs.network/)
+
+---
+
+## Contributing
+
+- Follow the existing project structure for frontend and backend code.
+- Use feature branches and submit Pull Requests for review.
+- Write clear commit messages and document major changes in the README or relevant files.
+- For contract changes, update both the contract and its deployment/test scripts.
+- Run tests before submitting changes.
+- For questions, open an issue or contact the project maintainer.

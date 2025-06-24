@@ -25,7 +25,7 @@ export class StakingService {
   private walletAddress: string | null = null;
 
   private constructor() {
-    this.web3 = new Web3((window as unknown as { ethereum: unknown }).ethereum);
+    this.web3 = new Web3(window.ethereum as typeof Web3.givenProvider);
   }
 
   public static getInstance(): StakingService {
@@ -141,7 +141,7 @@ export class StakingService {
   }
 
   async hasDiscountEligibility(): Promise<boolean> {
-    if (!this.walletAddress) {
+    if (!this.walletAddress || !this.contract) {
       return false;
     }
     
@@ -206,7 +206,7 @@ export class StakingService {
   }
 
   async isEligibleForDiscount(): Promise<boolean> {
-    if (!this.walletAddress) {
+    if (!this.walletAddress || !this.contract) {
       return false;
     }
     
@@ -244,6 +244,7 @@ export function useStakingService() {
   const { staking } = useContracts();
 
   const stake = async (overrides = {}) => {
+    if (!staking) throw new Error("Staking contract is not available.");
     return staking.stake(overrides);
   };
 

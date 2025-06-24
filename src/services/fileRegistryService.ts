@@ -1,4 +1,4 @@
-import { useContracts } from "../hooks/useContracts";
+import { useContracts } from "@/hooks/useContracts";
 
 export function useFileRegistryService() {
   const { fileRegistry } = useContracts();
@@ -17,6 +17,9 @@ export function useFileRegistryService() {
     mintPrice: string,
     overrides = {}
   ) => {
+    if (!fileRegistry) {
+      throw new Error("FileRegistry contract is not available.");
+    }
     return fileRegistry.uploadFile(
       ipfsHash,
       publicPreviewHash,

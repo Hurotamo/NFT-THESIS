@@ -1,14 +1,23 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import Web3 from 'web3';
+import { Contract } from 'web3-eth-contract';
+import { AbiItem } from 'web3-utils';
 import { useToast } from '@/hooks/use-toast';
-import { CONTRACT_ADDRESSES } from '../config/contractAddresses';
-import StakingABI from '../../core-contract/artifacts/contracts/Staking.sol/Staking.json';
-import ThesisNFTABI from '../../core-contract/artifacts/contracts/Thesis-NFT.sol/ThesisNFT.json';
-import ThesisAuctionABI from '../../core-contract/artifacts/contracts/Thesis-Auction.sol/ThesisAuction.json';
+import { CONTRACT_ADDRESSES } from '@/config/contractAddresses';
+import StakingABI from '@/abis/Staking.json';
+import ThesisNFTABI from '@/abis/ThesisNFT.json';
+import ThesisAuctionABI from '@/abis/ThesisAuction.json';
+import GovernanceABI from '@/abis/Governance.json';
+import FileRegistryABI from '@/abis/FileRegistry.json';
+import AuctionManagerABI from '@/abis/AuctionManager.json';
 
 declare global {
   interface Window {
-    ethereum?: any;
+    ethereum?: typeof Web3.givenProvider & {
+      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+      on: (event: string, handler: (...args: unknown[]) => void) => void;
+      removeListener: (event: string, handler: (...args: unknown[]) => void) => void;
+    };
   }
 }
 
@@ -20,9 +29,12 @@ interface Web3ContextType {
   isCorrectNetwork: boolean;
   networkStatus: 'checking' | 'correct' | 'incorrect' | 'error';
   contracts: {
-    staking: any;
-    thesisNFT: any;
-    thesisAuction: any;
+    staking: Contract<AbiItem[]>;
+    thesisNFT: Contract<AbiItem[]>;
+    thesisAuction: Contract<AbiItem[]>;
+    governance: Contract<AbiItem[]>;
+    fileRegistry: Contract<AbiItem[]>;
+    auctionManager: Contract<AbiItem[]>;
   } | null;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
@@ -51,9 +63,12 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isCorrectNetwork, setIsCorrectNetwork] = useState(false);
   const [networkStatus, setNetworkStatus] = useState<'checking' | 'correct' | 'incorrect' | 'error'>('checking');
   const [contracts, setContracts] = useState<{
-    staking: any;
-    thesisNFT: any;
-    thesisAuction: any;
+    staking: Contract<AbiItem[]>;
+    thesisNFT: Contract<AbiItem[]>;
+    thesisAuction: Contract<AbiItem[]>;
+    governance: Contract<AbiItem[]>;
+    fileRegistry: Contract<AbiItem[]>;
+    auctionManager: Contract<AbiItem[]>;
   } | null>(null);
   const { toast } = useToast();
 
@@ -64,24 +79,42 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       // Initialize contracts
       const stakingContract = new web3Instance.eth.Contract(
-        StakingABI.abi,
+        StakingABI.abi as AbiItem[],
         CONTRACT_ADDRESSES.staking
       );
       
       const thesisNFTContract = new web3Instance.eth.Contract(
-        ThesisNFTABI.abi,
+        ThesisNFTABI.abi as AbiItem[],
         CONTRACT_ADDRESSES.thesisNFT
       );
       
       const thesisAuctionContract = new web3Instance.eth.Contract(
-        ThesisAuctionABI.abi,
+        ThesisAuctionABI.abi as AbiItem[],
         CONTRACT_ADDRESSES.thesisAuction
+      );
+
+      const governanceContract = new web3Instance.eth.Contract(
+        GovernanceABI.abi as AbiItem[],
+        CONTRACT_ADDRESSES.governance
+      );
+
+      const fileRegistryContract = new web3Instance.eth.Contract(
+        FileRegistryABI.abi as AbiItem[],
+        CONTRACT_ADDRESSES.fileRegistry
+      );
+
+      const auctionManagerContract = new web3Instance.eth.Contract(
+        AuctionManagerABI.abi as AbiItem[],
+        CONTRACT_ADDRESSES.auctionManager
       );
       
       setContracts({
         staking: stakingContract,
         thesisNFT: thesisNFTContract,
         thesisAuction: thesisAuctionContract,
+        governance: governanceContract,
+        fileRegistry: fileRegistryContract,
+        auctionManager: auctionManagerContract,
       });
       
       return web3Instance;
@@ -111,6 +144,7 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addCoreTestnetToMetaMask = async () => {
     try {
+      if (!window.ethereum) throw new Error("MetaMask not found");
       await window.ethereum.request({
         method: 'wallet_addEthereumChain',
         params: [CORE_TESTNET_CONFIG],
@@ -123,11 +157,12 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       setTimeout(checkNetwork, 1000);
       return true;
-    } catch (error: any) {
-      console.error('Failed to add Core Testnet:', error);
+    } catch (error) {
+      const err = error as { message?: string };
+      console.error('Failed to add Core Testnet:', err);
       toast({
         title: "Network Error",
-        description: error.message || "Failed to add CORE Testnet to MetaMask",
+        description: err.message || "Failed to add CORE Testnet to MetaMask",
         variant: "destructive",
       });
       return false;
@@ -136,6 +171,7 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const switchToCoreTestnet = async (): Promise<boolean> => {
     try {
+      if (!window.ethereum) throw new Error("MetaMask not found");
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: CORE_TESTNET_CONFIG.chainId }],
@@ -148,14 +184,15 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       setTimeout(checkNetwork, 1000);
       return true;
-    } catch (error: any) {
-      if (error.code === 4902) {
+    } catch (error) {
+      const err = error as { code?: number; message?: string };
+      if (err.code === 4902) {
         return await addCoreTestnetToMetaMask();
       }
-      console.error('Failed to switch to Core Testnet:', error);
+      console.error('Failed to switch to Core Testnet:', err);
       toast({
         title: "Switch Failed",
-        description: error.message || "Failed to switch to CORE Testnet",
+        description: err.message || "Failed to switch to CORE Testnet",
         variant: "destructive",
       });
       return false;
@@ -187,9 +224,12 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       // Request account access
+      if (!web3) throw new Error("Web3 not initialized");
+      if (!window.ethereum) throw new Error("MetaMask not found");
+
       const accounts = await window.ethereum.request({
         method: 'eth_requestAccounts',
-      });
+      }) as string[];
 
       if (accounts.length > 0) {
         setAccounts(accounts);
@@ -197,8 +237,8 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setIsConnected(true);
         
         // Update services with wallet address
-        const { NFTContractService } = await import('../services/nftContractService');
-        const { StakingService } = await import('../services/stakingService');
+        const { NFTContractService } = await import('@/services/nftContractService');
+        const { StakingService } = await import('@/services/stakingService');
         
         NFTContractService.getInstance().setWalletAddress(accounts[0]);
         StakingService.getInstance().setWalletAddress(accounts[0]);
@@ -208,11 +248,12 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
           description: `Connected to ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`,
         });
       }
-    } catch (error: any) {
-      console.error('Failed to connect wallet:', error);
+    } catch (error) {
+      const err = error as { message?: string };
+      console.error('Failed to connect wallet:', err);
       toast({
         title: "Connection Failed",
-        description: error.message || "Failed to connect wallet. Please try again.",
+        description: err.message || "Failed to connect wallet. Please try again.",
         variant: "destructive",
       });
     }
@@ -231,7 +272,8 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
-  const handleAccountsChanged = (accounts: string[]) => {
+  const handleAccountsChanged = (newAccounts: unknown) => {
+    const accounts = newAccounts as string[];
     if (accounts.length === 0) {
       disconnectWallet();
     } else {
@@ -241,8 +283,8 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       // Update services with new wallet address
       const updateServices = async () => {
-        const { NFTContractService } = await import('../services/nftContractService');
-        const { StakingService } = await import('../services/stakingService');
+        const { NFTContractService } = await import('@/services/nftContractService');
+        const { StakingService } = await import('@/services/stakingService');
         
         NFTContractService.getInstance().setWalletAddress(accounts[0]);
         StakingService.getInstance().setWalletAddress(accounts[0]);
