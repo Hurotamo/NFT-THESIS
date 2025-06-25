@@ -1,3 +1,4 @@
+// IMPORTANT: Set OWNER1, OWNER2, OWNER3, OWNER4, OWNER5 in your .env file before running this script.
 // Usage: MAX_SUPPLY=80 MIN_SUPPLY=40 npx hardhat run scripts/deployThesis-NFT.ts --network <network>
 // Example: MAX_SUPPLY=80 MIN_SUPPLY=40 npx hardhat run scripts/deployThesis-NFT.ts --network core_testnet
 
@@ -12,9 +13,9 @@ async function main() {
   console.log("Deploying AuctionManager contract with the account:", deployer.address);
 
   // Hardcoded addresses for dependencies
-  const STAKING_ADDRESS = "0x827079c34F584d750eDbB1bFf3e633586BfCBe5D";
-  const GOVERNANCE_ADDRESS = "0xaC0C3fC3487a219325b47De41341A0667257dA77";
-  const FILEREGISTRY_ADDRESS = "0x1681bDB124Bd82726A3BbD81f9259C46B056512b";
+  const STAKING_ADDRESS = "0xaBEEEc6e6c1f6bfDE1d05db74B28847Ba5b44EAF";
+  const GOVERNANCE_ADDRESS = "0x1b383702AC139AE9E72936AAA8edbfe8F30e34D1";
+  const FILEREGISTRY_ADDRESS = "0xFE42508065bAF091AaB7285C10a09daD5B075dE6";
 
   // NFT parameters
   const name = process.env.NFT_NAME || "Thesis NFT";
@@ -26,9 +27,10 @@ async function main() {
 
   // 1. Deploy AuctionManager with placeholder address
   const AuctionManager = await ethers.getContractFactory("AuctionManager");
+  const initialOwner = process.env.OWNER1 || deployer.address;
   const auctionManager = await upgrades.deployProxy(
     AuctionManager,
-    [ethers.ZeroAddress, deployer.address], // Placeholder for ThesisNFT address, deployer as owner
+    [ethers.ZeroAddress, initialOwner], // Placeholder for ThesisNFT address, OWNER1 as owner
     { initializer: "initialize" }
   );
   await auctionManager.waitForDeployment();
@@ -45,7 +47,7 @@ async function main() {
       maxSupply,
       minSupply,
       price,
-      deployer.address,
+      initialOwner,
       STAKING_ADDRESS,
       baseTokenURI,
       auctionManagerAddress,

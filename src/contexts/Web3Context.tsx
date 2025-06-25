@@ -29,12 +29,12 @@ interface Web3ContextType {
   isCorrectNetwork: boolean;
   networkStatus: 'checking' | 'correct' | 'incorrect' | 'error';
   contracts: {
-    staking: Contract<AbiItem[]>;
-    thesisNFT: Contract<AbiItem[]>;
-    thesisAuction: Contract<AbiItem[]>;
-    governance: Contract<AbiItem[]>;
-    fileRegistry: Contract<AbiItem[]>;
-    auctionManager: Contract<AbiItem[]>;
+    staking: Contract;
+    thesisNFT: Contract;
+    thesisAuction: Contract;
+    governance: Contract;
+    fileRegistry: Contract;
+    auctionManager: Contract;
   } | null;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
@@ -63,12 +63,12 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isCorrectNetwork, setIsCorrectNetwork] = useState(false);
   const [networkStatus, setNetworkStatus] = useState<'checking' | 'correct' | 'incorrect' | 'error'>('checking');
   const [contracts, setContracts] = useState<{
-    staking: Contract<AbiItem[]>;
-    thesisNFT: Contract<AbiItem[]>;
-    thesisAuction: Contract<AbiItem[]>;
-    governance: Contract<AbiItem[]>;
-    fileRegistry: Contract<AbiItem[]>;
-    auctionManager: Contract<AbiItem[]>;
+    staking: Contract;
+    thesisNFT: Contract;
+    thesisAuction: Contract;
+    governance: Contract;
+    fileRegistry: Contract;
+    auctionManager: Contract;
   } | null>(null);
   const { toast } = useToast();
 
@@ -79,32 +79,32 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       // Initialize contracts
       const stakingContract = new web3Instance.eth.Contract(
-        StakingABI.abi as AbiItem[],
+        StakingABI.abi as any,
         CONTRACT_ADDRESSES.staking
       );
       
       const thesisNFTContract = new web3Instance.eth.Contract(
-        ThesisNFTABI.abi as AbiItem[],
+        ThesisNFTABI.abi as any,
         CONTRACT_ADDRESSES.thesisNFT
       );
       
       const thesisAuctionContract = new web3Instance.eth.Contract(
-        ThesisAuctionABI.abi as AbiItem[],
+        ThesisAuctionABI.abi as any,
         CONTRACT_ADDRESSES.thesisAuction
       );
 
       const governanceContract = new web3Instance.eth.Contract(
-        GovernanceABI.abi as AbiItem[],
+        GovernanceABI.abi as any,
         CONTRACT_ADDRESSES.governance
       );
 
       const fileRegistryContract = new web3Instance.eth.Contract(
-        FileRegistryABI.abi as AbiItem[],
+        FileRegistryABI.abi as any,
         CONTRACT_ADDRESSES.fileRegistry
       );
 
       const auctionManagerContract = new web3Instance.eth.Contract(
-        AuctionManagerABI.abi as AbiItem[],
+        AuctionManagerABI.abi as any,
         CONTRACT_ADDRESSES.auctionManager
       );
       

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Float, Center } from '@react-three/drei';
@@ -13,6 +13,13 @@ import ThesisPosting from "@/components/core/ThesisPosting";
 import UserProfile from "../components/core/UserProfile";
 import EnhancedMintingSection from "../components/core/EnhancedMintingSection";
 import Footer from "@/components/layout/Footer";
+import EmergencyBanner from '../components/core/EmergencyBanner';
+import AdminStakingPanel from '../components/core/AdminStakingPanel';
+import CountdownTimer from '../components/core/CountdownTimer';
+import { StakingService } from '@/services/stakingService';
+import { GovernanceService } from '@/services/governanceService';
+import GovernanceSection from '@/components/core/GovernanceSection';
+import { Link } from 'react-router-dom';
 
 // 3D NFT Card Component
 function FloatingNFT() {
@@ -103,7 +110,33 @@ const sections = {
   auction: AuctionSection,
   post: ThesisPosting,
   profile: UserProfile,
+  governance: GovernanceSection,
 };
+
+// Helper to shorten Ethereum addresses
+function shortenAddress(addr: string) {
+  return addr.slice(0, 6) + '...' + addr.slice(-4);
+}
+
+// Simple blockies avatar (fallback: colored circle)
+function Blockie({ address }: { address: string }) {
+  // For simplicity, use a colored circle based on address hash
+  const color = `hsl(${parseInt(address.slice(2, 6), 16) % 360}, 70%, 60%)`;
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        width: 24,
+        height: 24,
+        borderRadius: '50%',
+        background: color,
+        marginRight: 8,
+        verticalAlign: 'middle',
+      }}
+      title={address}
+    />
+  );
+}
 
 const Index = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -117,6 +150,112 @@ const Index = () => {
     disconnectWallet 
   } = useWeb3();
 
+  // --- Emergency and Admin State ---
+  const [emergencyMode, setEmergencyMode] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminRole, setAdminRole] = useState<string | null>(null);
+  const [multisigParticipants, setMultisigParticipants] = useState<string[]>([]);
+  const [multisigPage, setMultisigPage] = useState(0);
+  const multisigPerPage = 10;
+  const multisigTotalPages = Math.ceil(multisigParticipants.length / multisigPerPage);
+  const multisigPageSlice = multisigParticipants.slice(
+    multisigPage * multisigPerPage,
+    multisigPage * multisigPerPage + multisigPerPage
+  );
+
+  useEffect(() => {
+    const fetchAdminStatus = async () => {
+      if (!currentAccount) {
+        console.warn('No currentAccount set');
+        setIsAdmin(false);
+        setAdminRole(null);
+        return;
+      }
+      const stakingService = StakingService.getInstance();
+      stakingService.setWalletAddress(currentAccount);
+      try {
+        const owner = await stakingService.getOwner();
+        console.log('[AdminCheck] currentAccount:', currentAccount);
+        console.log('[AdminCheck] owner from contract:', owner);
+        if (owner && owner.toLowerCase() === currentAccount.toLowerCase()) {
+          console.log('[AdminCheck] User is OWNER');
+          setIsAdmin(true);
+          setAdminRole('Owner');
+          return;
+        }
+        // Check governance
+        const governanceAddress = await stakingService.getGovernanceContract();
+        console.log('[AdminCheck] governance contract:', governanceAddress);
+        if (governanceAddress && governanceAddress !== '0x0000000000000000000000000000000000000000') {
+          const web3 = stakingService['web3'];
+          const governanceService = new GovernanceService(governanceAddress, web3);
+          const isGovAdmin = await governanceService.isAuthorizedVoter(currentAccount);
+          console.log('[AdminCheck] isAuthorizedVoter:', isGovAdmin);
+          if (isGovAdmin) {
+            setIsAdmin(true);
+            setAdminRole('Governance');
+            return;
+          }
+        }
+        // Check multisig participant
+        const isMultisig = await stakingService.hasConfirmedAnyOperation(currentAccount);
+        console.log('[AdminCheck] isMultisig:', isMultisig);
+        if (isMultisig) {
+          setIsAdmin(true);
+          setAdminRole('Multisig');
+        } else {
+          setIsAdmin(false);
+          setAdminRole(null);
+        }
+      } catch (e) {
+        setIsAdmin(false);
+        setAdminRole(null);
+      }
+    };
+    fetchAdminStatus();
+  }, [currentAccount]);
+
+  // Fetch all multisig participants
+  useEffect(() => {
+    const fetchMultisigParticipants = async () => {
+      const stakingService = StakingService.getInstance();
+      try {
+        const contract = stakingService.getContract();
+        if (!contract) return;
+        // Get all OperationProposed events
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const events = await (contract as any).getPastEvents('OperationProposed', {
+          fromBlock: 0,
+          toBlock: 'latest'
+        });
+        const participantSet = new Set<string>();
+        for (const event of events) {
+          if (typeof event === 'object' && event !== null && 'returnValues' in event) {
+            const operationHash = event.returnValues.operationHash;
+            if (typeof operationHash === 'string') {
+              // Get all addresses that confirmed this operation
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const confirmedEvents = await (contract as any).getPastEvents('OperationConfirmed', {
+                filter: { operationHash },
+                fromBlock: 0,
+                toBlock: 'latest'
+              });
+              for (const ce of confirmedEvents) {
+                if (typeof ce === 'object' && ce !== null && 'returnValues' in ce) {
+                  participantSet.add(ce.returnValues.confirmer);
+                }
+              }
+            }
+          }
+        }
+        setMultisigParticipants(Array.from(participantSet));
+      } catch (e) {
+        setMultisigParticipants([]);
+      }
+    };
+    fetchMultisigParticipants();
+  }, []);
+
   const navigation = [
     { name: 'Home', id: 'home', icon: FileText },
     { name: 'Post Thesis', id: 'post', icon: Upload },
@@ -124,6 +263,7 @@ const Index = () => {
     { name: 'Stake', id: 'stake', icon: Wallet },
     { name: 'Auction', id: 'auction', icon: Gavel },
     { name: 'Profile', id: 'profile', icon: User },
+    { name: 'Governance', id: 'governance', icon: Gavel },
   ];
 
   const handleWalletConnect = async () => {
@@ -150,7 +290,55 @@ const Index = () => {
       case 'mint':
         return <EnhancedMintingSection walletAddress={currentAccount || ''} />;
       case 'stake':
-        return <StakingSection walletAddress={currentAccount || ''} />;
+        return (
+          <>
+            <EmergencyBanner emergencyMode={emergencyMode} />
+            <StakingSection walletAddress={currentAccount || ''} />
+            {isAdmin && (
+              <>
+                <div className="mb-2 text-sm text-blue-300 font-semibold">
+                  Admin Access Role: {adminRole}
+                </div>
+                <AdminStakingPanel walletAddress={currentAccount || ''} />
+                {adminRole === 'Multisig' && multisigParticipants.length > 0 && (
+                  <div className="mt-4 bg-white/5 rounded-xl p-4 border border-white/10">
+                    <div className="font-semibold mb-2 text-blue-200">
+                      All Multisig Participants ({multisigParticipants.length})
+                    </div>
+                    <ul className="text-xs text-white space-y-1">
+                      {multisigPageSlice.map(addr => (
+                        <li key={addr} className="flex items-center gap-2">
+                          <Blockie address={addr} />
+                          <span className="font-mono">{shortenAddress(addr)}</span>
+                          <span className="text-gray-400 ml-2">{addr}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="flex items-center justify-between mt-3">
+                      <button
+                        className="px-2 py-1 rounded bg-blue-700/30 text-blue-200 disabled:opacity-40"
+                        onClick={() => setMultisigPage(p => Math.max(0, p - 1))}
+                        disabled={multisigPage === 0}
+                      >
+                        Previous
+                      </button>
+                      <span className="text-xs text-gray-300">
+                        Page {multisigPage + 1} of {multisigTotalPages}
+                      </span>
+                      <button
+                        className="px-2 py-1 rounded bg-blue-700/30 text-blue-200 disabled:opacity-40"
+                        onClick={() => setMultisigPage(p => Math.min(multisigTotalPages - 1, p + 1))}
+                        disabled={multisigPage >= multisigTotalPages - 1}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        );
       case 'auction':
         return <AuctionSection walletAddress={currentAccount || ''} />;
       case 'profile':
@@ -169,6 +357,8 @@ const Index = () => {
             </motion.div>
           </div>
         );
+      case 'governance':
+        return <GovernanceSection />;
       default:
         return (
           <div className="relative">
@@ -287,6 +477,16 @@ const Index = () => {
                   <span>{item.name}</span>
                 </button>
               ))}
+              {/* Admin Link */}
+              {isConnected && isAdmin && (
+                <Link
+                  to="/admin"
+                  className="flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 text-purple-400 hover:text-white hover:bg-purple-700/20 border border-purple-400/30"
+                >
+                  <Gavel className="w-5 h-5" />
+                  <span>Admin</span>
+                </Link>
+              )}
             </div>
 
             {/* Notification Bell + Wallet/Connect/Profile Section */}
@@ -359,6 +559,17 @@ const Index = () => {
                   <span>{item.name}</span>
                 </button>
               ))}
+              {/* Admin Link (Mobile) */}
+              {isConnected && isAdmin && (
+                <a
+                  href="/admin"
+                  className="flex items-center space-x-3 w-full px-3 py-3 rounded-lg text-purple-400 hover:bg-purple-700/10 transition-all duration-200 border border-purple-400/30"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <Gavel className="w-5 h-5" />
+                  <span>Admin</span>
+                </a>
+              )}
               {isConnected && (
                 <button
                   onClick={() => {

@@ -1,58 +1,148 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Coins, TrendingUp, Gift, AlertCircle, Lock, Unlock, Clock, CheckCircle, Info } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Coins, 
+  TrendingUp, 
+  Gift, 
+  AlertCircle, 
+  Lock, 
+  Unlock, 
+  Clock, 
+  CheckCircle, 
+  Info, 
+  Shield, 
+  Zap,
+  Users,
+  BarChart3,
+  RefreshCw,
+  AlertTriangle,
+  Calendar,
+  Wallet,
+  Percent,
+  Timer
+} from 'lucide-react';
 import { Button } from "@/components/buttons/Button";
 import { useToast } from "@/hooks/use-toast";
 import { StakingService, StakePosition } from '@/services/stakingService';
 import { ethers } from 'ethers';
+import StakingAnalytics from './StakingAnalytics';
+import StakingABI from '@/abis/Staking.json';
+import { CONTRACT_ADDRESSES } from '@/config/contractAddresses';
 
 interface StakingSectionProps {
   walletAddress: string;
 }
 
+interface StakingStats {
+  totalStaked: number;
+  totalStakers: number;
+  discountPercent: number;
+  hasActiveStake: boolean;
+  isBlacklisted: boolean;
+  emergencyMode: boolean;
+  contractPaused: boolean;
+}
+
 const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
-  const [stakeInput, setStakeInput] = useState('');
+  const [stakeInput, setStakeInput] = useState('0.1');
   const [isStaking, setIsStaking] = useState(false);
   const [isUnstaking, setIsUnstaking] = useState(false);
-  const [totalStaked, setTotalStaked] = useState(0);
-  const [hasDiscount, setHasDiscount] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [stakingStats, setStakingStats] = useState<StakingStats>({
+    totalStaked: 0,
+    totalStakers: 0,
+    discountPercent: 20,
+    hasActiveStake: false,
+    isBlacklisted: false,
+    emergencyMode: false,
+    contractPaused: false
+  });
   const [userStakes, setUserStakes] = useState<StakePosition[]>([]);
   const [unlockTime, setUnlockTime] = useState<Date | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<string>('');
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [pendingStake, setPendingStake] = useState(false);
+  const [justStaked, setJustStaked] = useState(false);
   const { toast } = useToast();
 
-  const minimumStake = 3; // 3 tCORE2 for discount eligibility
-  const availableBalance = 500; // Mock balance - in real app, get from wallet
+  const REQUIRED_STAKE_AMOUNT = 0.1; // 0.1 tCORE2 as per contract
+  const LOCK_PERIOD_HOURS = 3;
 
+  // Initialize staking service
   useEffect(() => {
-    const stakingService = StakingService.getInstance();
-    const loadStakingData = async () => {
-      if (walletAddress) {
-        try {
-          const [staked, discount, stakes] = await Promise.all([
-            stakingService.getTotalStaked(),
-            stakingService.hasDiscountEligibility(),
-            stakingService.getUserStakes()
-          ]);
-          
-          setTotalStaked(staked);
-          setHasDiscount(discount);
-          setUserStakes(stakes);
-          
-          // Get unlock time if user has staked
-          if (stakes.length > 0) {
-            setUnlockTime(stakes[0].unlockTime);
-          }
-        } catch (error) {
-          console.error('Failed to load staking data:', error);
-        }
-      }
-    };
-
-    loadStakingData();
+    if (walletAddress) {
+      const stakingService = StakingService.getInstance();
+      stakingService.setWalletAddress(walletAddress);
+      loadStakingData();
+    }
   }, [walletAddress]);
 
-  // Update time remaining every second
+  const loadStakingData = useCallback(async () => {
+    if (!walletAddress) return;
+    
+    setIsLoading(true);
+    try {
+      const stakingService = StakingService.getInstance();
+      
+      // Load all data in parallel
+      const [
+        totalStaked,
+        hasDiscount,
+        stakes,
+        config,
+        unlockTimeData,
+        balance
+      ] = await Promise.all([
+        stakingService.getTotalStaked(),
+        stakingService.hasDiscountEligibility(),
+        stakingService.getUserStakes(),
+        stakingService.getStakingConfig(),
+        stakingService.getUserUnlockTime(),
+        getWalletBalance()
+      ]);
+      
+      setStakingStats(prev => ({
+        ...prev,
+        totalStaked,
+        hasActiveStake: hasDiscount,
+        discountPercent: config.discountPercentage
+      }));
+      
+      setUserStakes(stakes);
+      setUnlockTime(unlockTimeData);
+      setWalletBalance(balance);
+      setLastUpdate(new Date());
+      
+    } catch (error) {
+      console.error('Failed to load staking data:', error);
+      toast({
+        title: "Data Load Error",
+        description: "Failed to load staking information. Please refresh the page.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [walletAddress, toast]);
+
+  const getWalletBalance = async (): Promise<number> => {
+    try {
+      if (window.ethereum) {
+        const balance = await window.ethereum.request({
+          method: 'eth_getBalance',
+          params: [walletAddress, 'latest']
+        });
+        return parseFloat(ethers.utils.formatEther(balance as string));
+      }
+      return 0;
+    } catch (error) {
+      console.error('Failed to get wallet balance:', error);
+      return 0;
+    }
+  };
+
+  // Real-time countdown timer
   useEffect(() => {
     const timer = setInterval(() => {
       if (unlockTime) {
@@ -60,43 +150,52 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
         const diff = unlockTime.getTime() - now.getTime();
         
         if (diff > 0) {
-          const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-          const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          const hours = Math.floor(diff / (1000 * 60 * 60));
           const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-          setTimeRemaining(`${days}d ${hours}h ${minutes}m`);
+          const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+          
+          if (hours > 0) {
+            setTimeRemaining(`${hours}h ${minutes}m ${seconds}s`);
+          } else if (minutes > 0) {
+            setTimeRemaining(`${minutes}m ${seconds}s`);
+          } else {
+            setTimeRemaining(`${seconds}s`);
+          }
         } else {
           setTimeRemaining('Ready to unstake');
+          // Auto-refresh data when lock period expires
+          loadStakingData();
         }
       }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [unlockTime]);
+  }, [unlockTime, loadStakingData]);
+
+  // Restore polling mechanism for real-time updates
+  useEffect(() => {
+    if (!walletAddress) return;
+    const interval = setInterval(() => {
+      loadStakingData();
+    }, 30000); // Poll every 30 seconds
+    return () => clearInterval(interval);
+  }, [walletAddress, loadStakingData]);
 
   const handleStake = async () => {
     const amount = parseFloat(stakeInput);
-    if (isNaN(amount) || amount <= 0) {
+    if (isNaN(amount) || amount !== REQUIRED_STAKE_AMOUNT) {
       toast({
         title: "Invalid Amount",
-        description: "Please enter a valid stake amount",
+        description: `Must stake exactly ${REQUIRED_STAKE_AMOUNT} tCORE2`,
         variant: "destructive",
       });
       return;
     }
 
-    if (amount < minimumStake) {
-      toast({
-        title: "Insufficient Amount",
-        description: `Minimum stake amount is ${minimumStake} tCORE2`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (amount > availableBalance) {
+    if (amount > walletBalance) {
       toast({
         title: "Insufficient Balance",
-        description: "You don't have enough tCORE2 tokens",
+        description: `You need ${REQUIRED_STAKE_AMOUNT} tCORE2 in your wallet`,
         variant: "destructive",
       });
       return;
@@ -105,25 +204,32 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
     setIsStaking(true);
     try {
       const stakingService = StakingService.getInstance();
-      const position = await stakingService.stakeTokens(amount);
+      await stakingService.stakeTokens(amount);
+      
+      // Optimistically update UI for real-time feedback
+      setStakingStats(prev => ({
+        ...prev,
+        hasActiveStake: true,
+        totalStaked: REQUIRED_STAKE_AMOUNT,
+        discountPercent: 20,
+      }));
+      setUserStakes([{ amount: REQUIRED_STAKE_AMOUNT, stakedAt: new Date(), unlockTime: new Date(Date.now() + LOCK_PERIOD_HOURS * 3600 * 1000), hasStaked: true, isActive: true }]);
+      setUnlockTime(new Date(Date.now() + LOCK_PERIOD_HOURS * 3600 * 1000));
+      setTimeRemaining(`${LOCK_PERIOD_HOURS}h 0m 0s`);
+      setPendingStake(true);
+      setJustStaked(true);
+      setTimeout(() => setPendingStake(false), 10000); // 10 seconds
+
+      toast({
+        title: "Staking Successful! 🎉",
+        description: `Staked ${amount} tCORE2 for ${LOCK_PERIOD_HOURS} hours. You now have a 20% discount!`,
+      });
       
       // Refresh data
-      const [staked, discount, stakes] = await Promise.all([
-        stakingService.getTotalStaked(),
-        stakingService.hasDiscountEligibility(),
-        stakingService.getUserStakes()
-      ]);
+      await loadStakingData();
+      setJustStaked(false);
+      setStakeInput('0.1');
       
-      setTotalStaked(staked);
-      setHasDiscount(discount);
-      setUserStakes(stakes);
-      setUnlockTime(position.unlockTime);
-      setStakeInput('');
-      
-      toast({
-        title: "Staking Successful",
-        description: `Staked ${amount} tCORE2 tokens for 30 days`,
-      });
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Failed to stake tokens. Please try again.";
       toast({
@@ -140,7 +246,7 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
     if (!unlockTime || new Date() < unlockTime) {
       toast({
         title: "Cannot Unstake",
-        description: "Your tokens are still locked for 30 days",
+        description: `Your tokens are still locked. Unlock time: ${unlockTime?.toLocaleString()}`,
         variant: "destructive",
       });
       return;
@@ -151,23 +257,14 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
       const stakingService = StakingService.getInstance();
       const result = await stakingService.unstakeTokens();
       
-      // Refresh data
-      const [staked, discount, stakes] = await Promise.all([
-        stakingService.getTotalStaked(),
-        stakingService.hasDiscountEligibility(),
-        stakingService.getUserStakes()
-      ]);
-      
-      setTotalStaked(staked);
-      setHasDiscount(discount);
-      setUserStakes(stakes);
-      setUnlockTime(null);
-      setTimeRemaining('');
-      
       toast({
-        title: "Unstaking Successful",
-        description: `Unstaked ${result?.amount} tCORE2 tokens`,
+        title: "Unstaking Successful! 💰",
+        description: `Successfully unstaked ${result?.amount} tCORE2 tokens`,
       });
+      
+      // Refresh data
+      await loadStakingData();
+      
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Failed to unstake tokens. Please try again.";
       toast({
@@ -181,6 +278,8 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
   };
 
   const canUnstake = unlockTime && new Date() >= unlockTime;
+  const hasActiveStake = stakingStats.hasActiveStake;
+  const progressToUnlock = unlockTime ? Math.max(0, Math.min(100, ((Date.now() - (unlockTime.getTime() - LOCK_PERIOD_HOURS * 3600 * 1000)) / (LOCK_PERIOD_HOURS * 3600 * 1000)) * 100)) : 0;
 
   if (!walletAddress) {
     return (
@@ -190,7 +289,7 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
           animate={{ opacity: 1, y: 0 }}
           className="backdrop-blur-md bg-white/10 rounded-xl p-8 border border-white/20 text-center max-w-md mx-auto"
         >
-          <AlertCircle className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
+          <Wallet className="w-16 h-16 text-blue-400 mx-auto mb-4" />
           <h3 className="text-2xl font-bold text-white mb-4">Wallet Required</h3>
           <p className="text-gray-300">Please connect your wallet to start staking tCORE2 tokens.</p>
         </motion.div>
@@ -198,103 +297,200 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
     );
   }
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center"
+        >
+          <RefreshCw className="w-12 h-12 text-blue-400 mx-auto mb-4 animate-spin" />
+          <p className="text-white text-lg">Loading staking information...</p>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen py-20 px-4">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
+        {/* Header Section */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-12"
         >
-          <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-            Stake tCORE2 Tokens
-          </h2>
-          <p className="text-xl text-gray-400 max-w-3xl mx-auto">
-            Stake 3+ tCORE2 tokens to unlock a 20% discount on all NFT minting fees. Tokens are locked for 30 days.
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <div className="p-3 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full">
+              <Coins className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-4xl md:text-5xl font-bold text-white">
+              tCORE2 Staking
+            </h2>
+          </div>
+          <p className="text-xl text-gray-400 max-w-3xl mx-auto mb-6">
+            Stake {REQUIRED_STAKE_AMOUNT} tCORE2 to unlock a {stakingStats.discountPercent}% discount on all NFT minting fees. 
+            Tokens are locked for {LOCK_PERIOD_HOURS} hours.
           </p>
+          
+          {/* Last Updated */}
+          <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+            <RefreshCw className="w-4 h-4" />
+            <span>Last updated: {lastUpdate.toLocaleTimeString()}</span>
+            <Button
+              onClick={loadStakingData}
+              variant="ghost"
+              size="sm"
+              className="text-blue-400 hover:text-blue-300"
+            >
+              Refresh
+            </Button>
+          </div>
         </motion.div>
 
+        {/* Emergency Mode Warning */}
+        {stakingStats.emergencyMode && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mb-8 p-4 bg-red-600/20 border border-red-400/30 rounded-xl"
+          >
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-6 h-6 text-red-400" />
+              <div>
+                <h4 className="text-red-400 font-semibold">Emergency Mode Active</h4>
+                <p className="text-red-300 text-sm">Staking operations are temporarily suspended due to emergency conditions.</p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Staking Stats */}
+          {/* Main Staking Interface */}
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.1 }}
             className="lg:col-span-2 space-y-6"
           >
-            {/* Current Stake Card */}
+            {/* Staking Analytics */}
+            <StakingAnalytics walletAddress={walletAddress} />
+
+            {/* Current Stake Status */}
             <div className="backdrop-blur-md bg-white/5 rounded-xl p-8 border border-white/10">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-2xl font-bold text-white flex items-center gap-3">
-                  <Coins className="w-8 h-8 text-yellow-400" />
-                  Your Stake
+                  <Shield className="w-8 h-8 text-blue-400" />
+                  Your Stake Status
                 </h3>
-                {hasDiscount && (
-                  <div className="flex items-center gap-2 bg-green-600/20 px-3 py-1 rounded-full">
-                    <Gift className="w-4 h-4 text-green-400" />
-                    <span className="text-green-400 text-sm font-semibold">20% Discount Active</span>
+                {hasActiveStake && (
+                  <div className="flex items-center gap-2 bg-green-600/20 px-4 py-2 rounded-full border border-green-400/30">
+                    <CheckCircle className="w-5 h-5 text-green-400" />
+                    <span className="text-green-400 font-semibold">{stakingStats.discountPercent}% Discount Active</span>
                   </div>
                 )}
               </div>
 
-              <div className="grid md:grid-cols-3 gap-6">
-                <div className="text-center">
+              <div className="grid md:grid-cols-4 gap-6 mb-8">
+                <div className="text-center p-4 bg-white/5 rounded-lg border border-white/10">
                   <div className="text-3xl font-bold text-white mb-2">
-                    {totalStaked.toFixed(2)}
+                    {hasActiveStake
+                      ? REQUIRED_STAKE_AMOUNT.toFixed(2)
+                      : userStakes[0]?.amount !== undefined
+                        ? userStakes[0].amount.toFixed(2)
+                        : '0.00'
+                    }
                   </div>
-                  <div className="text-gray-400">tCORE2 Staked</div>
+                  <div className="text-gray-400 text-sm">tCORE2 Staked</div>
                 </div>
-                <div className="text-center">
+                <div className="text-center p-4 bg-white/5 rounded-lg border border-white/10">
                   <div className="text-3xl font-bold text-purple-400 mb-2">
-                    {Math.max(0, minimumStake - totalStaked).toFixed(2)}
+                    {walletBalance.toFixed(3)}
                   </div>
-                  <div className="text-gray-400">Needed for Discount</div>
+                  <div className="text-gray-400 text-sm">Wallet Balance</div>
                 </div>
-                <div className="text-center">
+                <div className="text-center p-4 bg-white/5 rounded-lg border border-white/10">
                   <div className="text-3xl font-bold text-green-400 mb-2">
-                    {hasDiscount ? '20%' : '0%'}
+                    {hasActiveStake ? '20%' : '0%'}
                   </div>
-                  <div className="text-gray-400">Minting Discount</div>
+                  <div className="text-gray-400 text-sm">Minting Discount</div>
+                </div>
+                <div className="text-center p-4 bg-white/5 rounded-lg border border-white/10">
+                  <div className="text-3xl font-bold text-blue-400 mb-2">
+                    {LOCK_PERIOD_HOURS}
+                  </div>
+                  <div className="text-gray-400 text-sm">Lock Period (Hours)</div>
                 </div>
               </div>
 
-              {/* Progress Bar */}
-              <div className="mt-8">
-                <div className="flex justify-between text-sm text-gray-400 mb-2">
-                  <span>Progress to Discount</span>
-                  <span>{Math.min(100, (totalStaked / minimumStake) * 100).toFixed(0)}%</span>
+              {/* Lock Progress */}
+              {hasActiveStake && unlockTime && (
+                <div className="mb-6">
+                  <div className="flex justify-between text-sm text-gray-400 mb-3">
+                    <span>Lock Progress</span>
+                    <span>{progressToUnlock.toFixed(1)}%</span>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progressToUnlock}%` }}
+                      transition={{ duration: 1, ease: "easeOut" }}
+                      className={`h-3 rounded-full ${
+                        canUnstake ? 'bg-green-400' : 'bg-blue-400'
+                      }`}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-500 mt-2">
+                    <span>Staked: {userStakes[0]?.stakedAt?.toLocaleDateString()}</span>
+                    <span>Unlock: {unlockTime.toLocaleDateString()}</span>
+                  </div>
                 </div>
-                <div className="w-full bg-gray-700 rounded-full h-3">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(100, (totalStaked / minimumStake) * 100)}%` }}
-                    transition={{ duration: 1, ease: "easeOut" }}
-                    className={`h-3 rounded-full ${
-                      hasDiscount ? 'bg-green-400' : 'bg-blue-400'
-                    }`}
-                  />
-                </div>
-              </div>
+              )}
 
-              {/* Lock Status */}
-              {userStakes.length > 0 && (
-                <div className="mt-6 p-4 bg-white/5 rounded-lg border border-white/10">
+              {/* Lock Status Card */}
+              {hasActiveStake && (
+                <div className="p-6 bg-gradient-to-r from-blue-600/10 to-purple-600/10 rounded-lg border border-blue-400/20">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Clock className="w-5 h-5 text-blue-400" />
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-blue-600/20 rounded-full">
+                        <Clock className="w-6 h-6 text-blue-400" />
+                      </div>
                       <div>
-                        <p className="text-white font-semibold">Lock Period</p>
-                        <p className="text-gray-400 text-sm">{timeRemaining}</p>
+                        <p className="text-white font-semibold text-lg">
+                          {canUnstake ? 'Ready to Unstake' : 'Tokens Locked'}
+                        </p>
+                        <p className="text-gray-400">
+                          {canUnstake 
+                            ? 'Your lock period has ended. You can now unstake your tokens.'
+                            : `Time remaining: ${timeRemaining}`
+                          }
+                        </p>
                       </div>
                     </div>
                     <Button
                       onClick={handleUnstake}
                       disabled={isUnstaking || !canUnstake}
-                      variant="outline"
-                      size="sm"
+                      variant={canUnstake ? "default" : "outline"}
+                      size="lg"
                       className={canUnstake ? "bg-green-600 hover:bg-green-700" : ""}
                     >
-                      {isUnstaking ? "Unstaking..." : canUnstake ? "Unstake" : "Locked"}
+                      {isUnstaking ? (
+                        <div className="flex items-center gap-2">
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          Unstaking...
+                        </div>
+                      ) : canUnstake ? (
+                        <div className="flex items-center gap-2">
+                          <Unlock className="w-4 h-4" />
+                          Unstake Now
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Lock className="w-4 h-4" />
+                          Locked
+                        </div>
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -302,116 +498,178 @@ const StakingSection: React.FC<StakingSectionProps> = ({ walletAddress }) => {
             </div>
 
             {/* Staking Form */}
-            {userStakes.length === 0 && (
-              <div className="backdrop-blur-md bg-white/5 rounded-xl p-8 border border-white/10">
+            {!hasActiveStake && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="backdrop-blur-md bg-white/5 rounded-xl p-8 border border-white/10"
+              >
                 <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
-                  <Lock className="w-8 h-8 text-blue-400" />
-                  Stake Tokens
+                  <Zap className="w-8 h-8 text-yellow-400" />
+                  Start Staking
                 </h3>
 
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Amount to Stake (tCORE2)
+                    <label className="block text-sm font-medium text-gray-300 mb-3">
+                      Stake Amount (tCORE2)
                     </label>
-                    <input
-                      type="number"
-                      value={stakeInput}
-                      onChange={(e) => setStakeInput(e.target.value)}
-                      placeholder="Enter amount (minimum 3 tCORE2)"
-                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-400"
-                    />
-                    <p className="text-sm text-gray-400 mt-1">
-                      Minimum stake: {minimumStake} tCORE2 for 30 days
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={stakeInput}
+                        onChange={(e) => setStakeInput(e.target.value)}
+                        step="0.1"
+                        min="0.1"
+                        max="0.1"
+                        className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 text-lg font-mono"
+                        placeholder="0.1"
+                      />
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                        tCORE2
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-400 mt-2">
+                      Fixed stake amount: {REQUIRED_STAKE_AMOUNT} tCORE2 for {LOCK_PERIOD_HOURS} hours
                     </p>
+                  </div>
+
+                  {/* Requirements Check */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 p-3 bg-white/5 rounded-lg">
+                      <CheckCircle className={`w-5 h-5 ${parseFloat(stakeInput) === REQUIRED_STAKE_AMOUNT ? 'text-green-400' : 'text-gray-500'}`} />
+                      <span className={`text-sm ${parseFloat(stakeInput) === REQUIRED_STAKE_AMOUNT ? 'text-white' : 'text-gray-400'}`}>
+                        Stake exactly {REQUIRED_STAKE_AMOUNT} tCORE2
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 bg-white/5 rounded-lg">
+                      <CheckCircle className={`w-5 h-5 ${walletBalance >= REQUIRED_STAKE_AMOUNT ? 'text-green-400' : 'text-gray-500'}`} />
+                      <span className={`text-sm ${walletBalance >= REQUIRED_STAKE_AMOUNT ? 'text-white' : 'text-gray-400'}`}>
+                        Sufficient wallet balance ({walletBalance.toFixed(3)} tCORE2)
+                      </span>
+                    </div>
                   </div>
 
                   <Button
                     onClick={handleStake}
-                    disabled={isStaking || !stakeInput || parseFloat(stakeInput) < minimumStake}
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-3 rounded-lg font-semibold disabled:opacity-50"
+                    disabled={isStaking || parseFloat(stakeInput) !== REQUIRED_STAKE_AMOUNT || walletBalance < REQUIRED_STAKE_AMOUNT}
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-4 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed text-lg"
+                    size="lg"
                   >
                     {isStaking ? (
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Staking...
+                      <div className="flex items-center gap-3">
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        Processing Stake...
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <Lock className="w-5 h-5" />
-                        Stake {stakeInput || minimumStake} tCORE2
+                        Stake {REQUIRED_STAKE_AMOUNT} tCORE2 for {LOCK_PERIOD_HOURS} Hours
                       </div>
                     )}
                   </Button>
                 </div>
-              </div>
+              </motion.div>
             )}
           </motion.div>
 
-          {/* Benefits Card */}
+          {/* Benefits & Stats Sidebar */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
             className="space-y-6"
           >
-            <div className="backdrop-blur-md bg-white/5 rounded-xl p-8 border border-white/10">
-              <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
-                <TrendingUp className="w-8 h-8 text-green-400" />
+            {/* Staking Benefits */}
+            <div className="backdrop-blur-md bg-white/5 rounded-xl p-6 border border-white/10">
+              <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+                <Gift className="w-6 h-6 text-green-400" />
                 Staking Benefits
               </h3>
 
-              <div className="space-y-6">
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-sm font-bold">
-                      1
-                    </div>
-                    <div>
-                      <h4 className="text-white font-semibold">NFT Minting Discount</h4>
-                      <p className="text-gray-400 text-sm">Get 20% off all NFT minting fees when you stake 3+ tCORE2</p>
-                    </div>
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 p-3 bg-green-600/10 rounded-lg border border-green-400/20">
+                  <div className="w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-sm font-bold text-white">
+                    1
                   </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-sm font-bold">
-                      2
-                    </div>
-                    <div>
-                      <h4 className="text-white font-semibold">Network Support</h4>
-                      <p className="text-gray-400 text-sm">Support the Core Blockchain network by staking native tCORE2 tokens</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-sm font-bold">
-                      3
-                    </div>
-                    <div>
-                      <h4 className="text-white font-semibold">One-Time Staking</h4>
-                      <p className="text-gray-400 text-sm">Simple one-time stake with 30-day lock period</p>
-                    </div>
+                  <div>
+                    <h4 className="text-white font-semibold">NFT Minting Discount</h4>
+                    <p className="text-gray-400 text-sm">Get {stakingStats.discountPercent}% off all NFT minting fees</p>
                   </div>
                 </div>
 
-                <div className="bg-blue-600/10 border border-blue-400/20 rounded-lg p-4">
-                  <h4 className="text-blue-400 font-semibold mb-2">Staking Requirements</h4>
-                  <ul className="text-sm text-gray-300 space-y-1">
-                    <li>• Minimum stake: 3 tCORE2</li>
-                    <li>• Lock period: 30 days</li>
-                    <li>• Discount: 20% on NFT minting</li>
-                    <li>• One-time staking per wallet</li>
-                  </ul>
+                <div className="flex items-start gap-3 p-3 bg-blue-600/10 rounded-lg border border-blue-400/20">
+                  <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-sm font-bold text-white">
+                    2
+                  </div>
+                  <div>
+                    <h4 className="text-white font-semibold">Network Support</h4>
+                    <p className="text-gray-400 text-sm">Support the Core Blockchain network</p>
+                  </div>
                 </div>
 
-                <div className="bg-yellow-600/10 border border-yellow-400/20 rounded-lg p-4">
-                  <h4 className="text-yellow-400 font-semibold mb-2">Important Notes</h4>
-                  <ul className="text-sm text-gray-300 space-y-1">
-                    <li>• Tokens are locked for exactly 30 days</li>
-                    <li>• Cannot unstake before lock period ends</li>
-                    <li>• No partial unstaking - all or nothing</li>
-                    <li>• Discount active immediately after staking</li>
-                  </ul>
+                <div className="flex items-start gap-3 p-3 bg-purple-600/10 rounded-lg border border-purple-400/20">
+                  <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-sm font-bold text-white">
+                    3
+                  </div>
+                  <div>
+                    <h4 className="text-white font-semibold">Simple & Secure</h4>
+                    <p className="text-gray-400 text-sm">One-time stake with guaranteed returns</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Staking Requirements */}
+            <div className="backdrop-blur-md bg-white/5 rounded-xl p-6 border border-white/10">
+              <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+                <Info className="w-6 h-6 text-blue-400" />
+                Requirements
+              </h3>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                  <span className="text-gray-300">Minimum Stake</span>
+                  <span className="text-white font-mono">{REQUIRED_STAKE_AMOUNT} tCORE2</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                  <span className="text-gray-300">Lock Period</span>
+                  <span className="text-white font-mono">{LOCK_PERIOD_HOURS} hours</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                  <span className="text-gray-300">Discount</span>
+                  <span className="text-green-400 font-mono">{stakingStats.discountPercent}%</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                  <span className="text-gray-300">Staking Type</span>
+                  <span className="text-white">One-time</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Important Notes */}
+            <div className="backdrop-blur-md bg-white/5 rounded-xl p-6 border border-white/10">
+              <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+                <AlertCircle className="w-6 h-6 text-yellow-400" />
+                Important Notes
+              </h3>
+
+              <div className="space-y-3 text-sm text-gray-300">
+                <div className="flex items-start gap-2">
+                  <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full mt-2 flex-shrink-0"></div>
+                  <span>Tokens are locked for exactly {LOCK_PERIOD_HOURS} hours</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full mt-2 flex-shrink-0"></div>
+                  <span>Cannot unstake before lock period ends</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full mt-2 flex-shrink-0"></div>
+                  <span>Discount active immediately after staking</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full mt-2 flex-shrink-0"></div>
+                  <span>One staking position per wallet address</span>
                 </div>
               </div>
             </div>

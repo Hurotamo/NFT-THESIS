@@ -2,9 +2,11 @@ import { ethers, upgrades } from "hardhat";
 import dotenv from "dotenv";
 dotenv.config();
 
+// IMPORTANT: Set OWNER1, OWNER2, OWNER3, OWNER4, OWNER5 in your .env file before running this script.
+
 async function main() {
   const [deployer] = await ethers.getSigners();
-  const STAKING_ADDRESS = "0x827079c34F584d750eDbB1bFf3e633586BfCBe5D";
+  const STAKING_ADDRESS = "0xaBEEEc6e6c1f6bfDE1d05db74B28847Ba5b44EAF";
   const initialOwner = process.env.OWNER1 || deployer.address;
 
   if (!STAKING_ADDRESS) throw new Error("STAKING_CONTRACT_ADDRESS not set in .env");

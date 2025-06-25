@@ -1,6 +1,7 @@
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESSES } from "@/config/contractAddresses";
 import { useContracts } from "@/hooks/useContracts";
+import type { EventLog } from 'web3-eth-contract';
 
 export interface NFTMetadata {
   title: string;
@@ -298,35 +299,73 @@ export class NFTContractService {
       const fromBlock = Math.max(0, latestBlock - 10000); // Scan last 10000 blocks
 
       // Query FileUploaded events
-      const fileUploadedEvents = await this.contract.queryFilter(
-        this.contract.filters.FileUploaded(),
-        fromBlock,
-        latestBlock
-      );
+      const events: EventLog[] = await this.contract.getPastEvents('FileUploaded', {
+        fromBlock: 0,
+        toBlock: 'latest'
+      });
 
       // Process events to extract file information
-      const uploadedFiles = fileUploadedEvents
-        .map(event => {
-          if (!event.args) {
+      const uploadedFiles = events
+        .map((event: EventLog) => {
+          if (!event.returnValues) {
             return null;
           }
-          const { uploader, ipfsHash, fileSize, feePaid, mintPrice } = event.args;
+          const { uploader, ipfsHash, fileSize, feePaid, mintPrice } = event.returnValues;
           return {
-            ipfsHash,
+            ipfsHash: String(ipfsHash),
             fileSize: Number(fileSize),
-            uploader,
-            feePaid: feePaid.toString(),
-            mintPrice: mintPrice.toString(),
-            blockNumber: event.blockNumber
+            uploader: String(uploader),
+            feePaid: String(feePaid),
+            mintPrice: String(mintPrice),
+            blockNumber: Number(event.blockNumber),
           };
         })
-        .filter((file): file is NonNullable<typeof file> => file !== null);
+        .filter((file): file is {
+          ipfsHash: string;
+          fileSize: number;
+          uploader: string;
+          feePaid: string;
+          mintPrice: string;
+          blockNumber: number;
+        } => file !== null);
 
       return uploadedFiles;
     } catch (error) {
       console.error('Error fetching uploaded files from contract:', error);
       throw new Error('Failed to fetch uploaded files from contract');
     }
+  }
+
+  /**
+   * Get the owner address of the NFT contract
+   */
+  async getOwner(): Promise<string> {
+    if (!this.contract) {
+      throw new Error("Contract not initialized");
+    }
+    return await this.contract.owner();
+  }
+
+  /**
+   * Withdraw platform fees (owner only)
+   */
+  async withdraw(): Promise<void> {
+    if (!this.contract) {
+      throw new Error("Contract not initialized");
+    }
+    const tx = await this.contract.withdraw();
+    await tx.wait();
+  }
+
+  async batchMint(addresses: string[], amounts: number[]): Promise<void> {
+    if (!this.walletAddress) {
+      throw new Error("Wallet address not set");
+    }
+    if (!this.contract) {
+      throw new Error("Contract not initialized");
+    }
+    const tx = await this.contract.batchMint(addresses, amounts);
+    await tx.wait();
   }
 }
 
@@ -340,6 +379,17 @@ export function useNFTService() {
     return thesisNFT.mint(uploader, amount, overrides);
   };
 
+  // Add batchMint for admin UI
+  const batchMint = async (addresses: string[], amounts: number[]) => {
+    const service = NFTContractService.getInstance();
+    const win = window as Window & typeof globalThis & { ethereum?: { selectedAddress?: string } };
+    if (!win.ethereum || !win.ethereum.selectedAddress) {
+      throw new Error("No wallet connected");
+    }
+    await service.setWalletAddress(win.ethereum.selectedAddress);
+    return service.batchMint(addresses, amounts);
+  };
+
   // Add more methods as needed...
-  return { mint };
+  return { mint, batchMint };
 }

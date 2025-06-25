@@ -4,6 +4,7 @@ import ThesisAuctionABI from "../../core-contract/artifacts/contracts/Thesis-Auc
 import { NFTContractService, MintedNFT } from './nftContractService';
 import type { Contract } from 'web3-eth-contract';
 import type { AbiItem } from 'web3-utils';
+import type { EventLog } from 'web3-eth-contract';
 
 export interface AuctionConfig {
   startingPrice: number;
@@ -208,5 +209,141 @@ export class AuctionService {
     });
 
     return userBids;
+  }
+
+  /**
+   * Get the platform wallet address from the contract
+   */
+  async getPlatformWallet(): Promise<string> {
+    return await this.contract.methods.platformWallet().call();
+  }
+
+  /**
+   * Get the withdrawable balance for an address
+   */
+  async getWithdrawable(address: string): Promise<string> {
+    return await this.contract.methods.withdrawable(address).call();
+  }
+
+  /**
+   * Withdraw platform fees for the current wallet
+   */
+  async withdrawFunds(): Promise<void> {
+    if (!this.walletAddress) {
+      throw new Error("Wallet address not set");
+    }
+    await this.contract.methods.withdrawFunds().send({ from: this.walletAddress });
+  }
+
+  /**
+   * Fetch all auctions from the contract (on-chain)
+   */
+  async fetchAllAuctions(): Promise<Auction[]> {
+    const totalAuctions = await this.contract.methods.getTotalAuctions().call();
+    const auctions: Auction[] = [];
+    for (let i = 0; i < Number(totalAuctions); i++) {
+      try {
+        const info = await this.contract.methods.auctionInfo(i).call();
+        if (
+          info &&
+          typeof info === 'object' &&
+          'minter' in info &&
+          'highestBid' in info &&
+          'endTime' in info &&
+          'startTime' in info &&
+          'active' in info &&
+          'isCancelled' in info &&
+          'highestBidder' in info
+        ) {
+          auctions.push({
+            id: String(i),
+            nftTokenId: String(i),
+            seller: String(info.minter) || '',
+            config: {
+              startingPrice: Number(info.highestBid) || 0,
+              reservePrice: 0, // Not available in info
+              duration: Number(info.endTime) && Number(info.startTime) ? Math.floor((Number(info.endTime) - Number(info.startTime)) / 3600) : 0,
+              onlyMintersCanBid: false, // Not available in info
+              escrowEnabled: false // Not available in info
+            },
+            bids: [], // To be filled by fetchAuctionBids
+            startTime: new Date(Number(info.startTime) * 1000),
+            endTime: new Date(Number(info.endTime) * 1000),
+            status: info.active ? 'active' : (info.isCancelled ? 'cancelled' : 'ended'),
+            winner: info.highestBidder ? String(info.highestBidder) : undefined,
+            finalPrice: Number(info.highestBid) || undefined,
+            escrowFunds: new Map(),
+          });
+        }
+      } catch (e) {
+        // skip if not found
+      }
+    }
+    return auctions;
+  }
+
+  /**
+   * Fetch all bids for a given auction (tokenId) using BidPlaced events
+   */
+  async fetchAuctionBids(tokenId: number): Promise<Bid[]> {
+    const events = await this.contract.getPastEvents('BidPlaced', {
+      filter: { tokenId: String(tokenId) },
+      fromBlock: 0,
+      toBlock: 'latest',
+    }) as unknown as EventLog[];
+    return events.map(e => {
+      const bidder = e.returnValues && typeof e.returnValues.bidder === 'string' ? e.returnValues.bidder : '';
+      const amount = e.returnValues && e.returnValues.amount ? Number(e.returnValues.amount) : 0;
+      return {
+        bidder,
+        amount,
+        timestamp: new Date(), // Block timestamp not available here
+        transactionHash: e.transactionHash || '',
+        blockNumber: e.blockNumber || 0,
+      };
+    });
+  }
+
+  /**
+   * Fetch the winner for a given auction (tokenId) using AuctionEnded event or auctionInfo
+   */
+  async fetchAuctionWinner(tokenId: number): Promise<string | null> {
+    const events = await this.contract.getPastEvents('AuctionEnded', {
+      filter: { tokenId: String(tokenId) },
+      fromBlock: 0,
+      toBlock: 'latest',
+    }) as unknown as EventLog[];
+    if (events.length > 0 && events[0].returnValues && typeof events[0].returnValues.winner === 'string') {
+      return events[0].returnValues.winner;
+    }
+    try {
+      const info = await this.contract.methods.auctionInfo(tokenId).call();
+      return info && typeof info.highestBidder === 'string' ? info.highestBidder : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Fetch all bids by a user (on-chain) using BidPlaced events
+   */
+  async fetchUserBids(userAddress: string): Promise<Bid[]> {
+    const events = await this.contract.getPastEvents('BidPlaced', {
+      filter: { bidder: userAddress },
+      fromBlock: 0,
+      toBlock: 'latest',
+    }) as unknown as EventLog[];
+    return events.map(e => {
+      const tokenId = e.returnValues && e.returnValues.tokenId ? String(e.returnValues.tokenId) : '';
+      const amount = e.returnValues && e.returnValues.amount ? Number(e.returnValues.amount) : 0;
+      return {
+        bidder: userAddress,
+        amount,
+        timestamp: new Date(), // Block timestamp not available here
+        transactionHash: e.transactionHash || '',
+        blockNumber: e.blockNumber || 0,
+        tokenId,
+      };
+    });
   }
 }

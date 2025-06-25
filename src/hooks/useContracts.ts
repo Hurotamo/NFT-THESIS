@@ -45,7 +45,21 @@ export function useContracts() {
       auctionManager: new ethers.Contract(CONTRACT_ADDRESSES.auctionManager, AuctionManagerABI.abi, signer),
       staking: new ethers.Contract(CONTRACT_ADDRESSES.staking, StakingABI.abi, signer),
       fileRegistry: new ethers.Contract(CONTRACT_ADDRESSES.fileRegistry, FileRegistryABI.abi, signer),
-      governance: new ethers.Contract(CONTRACT_ADDRESSES.governance, GovernanceABI.abi, signer),
+      governance: {
+        ...new ethers.Contract(CONTRACT_ADDRESSES.governance, GovernanceABI.abi, signer),
+        authorizeVoter: async (voter: string, weight: number) => {
+          const tx = await new ethers.Contract(CONTRACT_ADDRESSES.governance, GovernanceABI.abi, signer).authorizeVoter(voter, weight);
+          return tx.wait();
+        },
+        removeVoter: async (voter: string) => {
+          const tx = await new ethers.Contract(CONTRACT_ADDRESSES.governance, GovernanceABI.abi, signer).removeVoter(voter);
+          return tx.wait();
+        },
+        updateVoterWeight: async (voter: string, weight: number) => {
+          const tx = await new ethers.Contract(CONTRACT_ADDRESSES.governance, GovernanceABI.abi, signer).updateVoterWeight(voter, weight);
+          return tx.wait();
+        }
+      },
       thesisAuction: new ethers.Contract(CONTRACT_ADDRESSES.thesisAuction, ThesisAuctionABI.abi, signer),
       // AuctionService methods for UI
       getActiveAuctions: () => auctionService.getActiveAuctions(),
