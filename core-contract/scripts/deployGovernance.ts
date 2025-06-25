@@ -1,3 +1,4 @@
+// IMPORTANT: Set OWNER1, OWNER2, OWNER3, OWNER4, OWNER5 in your .env file before running this script.
 import { ethers, upgrades } from "hardhat";
 import { Contract } from "ethers";
 import dotenv from "dotenv";

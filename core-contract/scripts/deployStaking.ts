@@ -2,6 +2,8 @@ import { ethers, upgrades } from "hardhat";
 import dotenv from "dotenv";
 dotenv.config();
 
+// IMPORTANT: Set OWNER1, OWNER2, OWNER3, OWNER4, OWNER5 in your .env file before running this script.
+
 async function main() {
   const [deployer] = await ethers.getSigners();
   const initialOwner = process.env.OWNER1 || deployer.address;

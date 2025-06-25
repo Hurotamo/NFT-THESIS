@@ -1,3 +1,4 @@
+// IMPORTANT: Set OWNER1, OWNER2, OWNER3, OWNER4, OWNER5 in your .env file before running this script.
 import { ethers, upgrades } from "hardhat";
 import dotenv from "dotenv";
 dotenv.config();
@@ -9,7 +10,7 @@ async function main() {
 
   const THESIS_NFT_ADDRESS = "0x128181A367C4FfB49F03A3619bF024C544026303";
   const initialPrice = ethers.parseEther(process.env.AUCTION_INITIAL_PRICE || "0.1");
-  const nftOwner = process.env.AUCTION_NFT_OWNER || deployer.address;
+  const nftOwner = process.env.OWNER1 || deployer.address;
   const platformWallet = process.env.AUCTION_PLATFORM_WALLET || deployer.address;
 
   const ThesisAuction = await ethers.getContractFactory("ThesisAuction");

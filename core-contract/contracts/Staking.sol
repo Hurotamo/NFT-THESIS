@@ -17,7 +17,7 @@ contract Staking is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, 
 
     // ============ SECURITY CONSTANTS ============
     uint256 public constant REQUIRED_STAKE_AMOUNT = 10**17; // 0.1 tCORE2
-    uint256 public constant LOCK_PERIOD = 30 days;
+    uint256 public constant LOCK_PERIOD = 3 hours;
     uint256 public constant MAX_DISCOUNT_PERCENT = 20; // Maximum 20% discount
     uint256 public constant EMERGENCY_WITHDRAWAL_DELAY = 24 hours;
     uint256 public constant TIMELOCK_DELAY = 24 hours;
@@ -163,6 +163,13 @@ contract Staking is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, 
             stakeTime: uint64(block.timestamp),
             isActive: true
         });
+        stakes[msg.sender] = StakeInfo({
+            amount: msg.value,
+            unlockTime: unlockTime,
+            hasStaked: true,
+            stakeTime: block.timestamp,
+            isActive: true
+        });
 
         totalStakedAmount += msg.value;
         totalStakers++;
@@ -213,6 +220,14 @@ contract Staking is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, 
         userStake.amount = 0;
         userStake.unlockTime = 0;
         userStake.stakeTime = 0;
+        
+        // Also reset optimizedStakes for this user
+        OptimizedStakeInfo storage optStake = optimizedStakes[msg.sender];
+        optStake.isActive = false;
+        optStake.amount = 0;
+        optStake.unlockTime = 0;
+        optStake.stakeTime = 0;
+
         totalStakedAmount -= amount;
         totalStakers--;
 
