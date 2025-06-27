@@ -18,8 +18,8 @@ async function main() {
   const FILEREGISTRY_ADDRESS = "0xFE42508065bAF091AaB7285C10a09daD5B075dE6";
 
   // NFT parameters
-  const name = process.env.NFT_NAME || "Thesis NFT";
-  const symbol = process.env.NFT_SYMBOL || "TNFT";
+  const name = process.env.NFT_NAME || "ACADEME NFT";
+  const symbol = process.env.NFT_SYMBOL || "ACAD";
   const maxSupply = parseInt(process.env.NFT_MAX_SUPPLY || "5", 10);
   const minSupply = parseInt(process.env.NFT_MIN_SUPPLY || "1", 10);
   const price = ethers.parseEther(process.env.NFT_PRICE || "0.1");

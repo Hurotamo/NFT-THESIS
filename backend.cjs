@@ -52,6 +52,476 @@ MongoClient.connect(MONGO_URI, { useUnifiedTopology: true })
     process.exit(1);
   });
 
+// ===== USER PROFILES ENDPOINTS =====
+
+// Create or update user profile
+app.post('/api/users/profile', async (req, res) => {
+  try {
+    const { wallet, username, avatarUrl, bio, socialLinks } = req.body;
+    
+    if (!wallet) {
+      return res.status(400).json({ error: 'Wallet address is required' });
+    }
+    
+    const userData = {
+      wallet,
+      username: username || '',
+      avatarUrl: avatarUrl || '',
+      bio: bio || '',
+      socialLinks: socialLinks || [],
+      updatedAt: new Date()
+    };
+    
+    await db.collection('users').updateOne(
+      { wallet },
+      { $set: userData },
+      { upsert: true }
+    );
+    
+    res.json({ success: true, user: userData });
+  } catch (error) {
+    console.error('Profile update error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get user profile
+app.get('/api/users/profile/:wallet', async (req, res) => {
+  try {
+    const { wallet } = req.params;
+    const user = await db.collection('users').findOne({ wallet });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json(user);
+  } catch (error) {
+    console.error('Profile fetch error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get user's social feed (activities from followed users)
+app.get('/api/users/feed/:wallet', async (req, res) => {
+  try {
+    const { wallet } = req.params;
+    const user = await db.collection('users').findOne({ wallet });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Get followed users' activities (simplified - you can expand this)
+    const followedUsers = user.following || [];
+    const feed = await db.collection('activities')
+      .find({ 
+        wallet: { $in: followedUsers },
+        timestamp: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } // Last 7 days
+      })
+      .sort({ timestamp: -1 })
+      .limit(50)
+      .toArray();
+    
+    res.json(feed);
+  } catch (error) {
+    console.error('Feed fetch error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Follow/unfollow user
+app.post('/api/users/follow', async (req, res) => {
+  try {
+    const { follower, following, action } = req.body; // action: 'follow' or 'unfollow'
+    
+    if (!follower || !following || !action) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const update = action === 'follow' 
+      ? { $addToSet: { following: following } }
+      : { $pull: { following: following } };
+    
+    await db.collection('users').updateOne(
+      { wallet: follower },
+      update
+    );
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Follow action error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== GALLERIES ENDPOINTS =====
+
+// Create gallery
+app.post('/api/galleries', async (req, res) => {
+  try {
+    const { userId, name, description, nftIds, isPublic } = req.body;
+    
+    if (!userId || !name) {
+      return res.status(400).json({ error: 'User ID and name are required' });
+    }
+    
+    const gallery = {
+      userId,
+      name,
+      description: description || '',
+      nftIds: nftIds || [],
+      isPublic: isPublic !== undefined ? isPublic : true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    const result = await db.collection('galleries').insertOne(gallery);
+    gallery._id = result.insertedId;
+    
+    res.json(gallery);
+  } catch (error) {
+    console.error('Gallery creation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get user's galleries
+app.get('/api/galleries/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const galleries = await db.collection('galleries')
+      .find({ userId })
+      .sort({ createdAt: -1 })
+      .toArray();
+    
+    res.json(galleries);
+  } catch (error) {
+    console.error('Gallery fetch error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get public galleries
+app.get('/api/galleries/public', async (req, res) => {
+  try {
+    const galleries = await db.collection('galleries')
+      .find({ isPublic: true })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .toArray();
+    
+    res.json(galleries);
+  } catch (error) {
+    console.error('Public galleries fetch error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update gallery
+app.put('/api/galleries/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = { ...req.body, updatedAt: new Date() };
+    
+    const result = await db.collection('galleries').findOneAndUpdate(
+      { _id: new require('mongodb').ObjectId(id) },
+      { $set: updateData },
+      { returnDocument: 'after' }
+    );
+    
+    if (!result.value) {
+      return res.status(404).json({ error: 'Gallery not found' });
+    }
+    
+    res.json(result.value);
+  } catch (error) {
+    console.error('Gallery update error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== COMMENTS ENDPOINTS =====
+
+// Add comment
+app.post('/api/comments', async (req, res) => {
+  try {
+    const { nftId, userId, text, parentId } = req.body;
+    
+    if (!nftId || !userId || !text) {
+      return res.status(400).json({ error: 'NFT ID, user ID, and text are required' });
+    }
+    
+    const comment = {
+      nftId,
+      userId,
+      text,
+      parentId: parentId || null, // For replies
+      timestamp: new Date(),
+      likes: 0,
+      likedBy: []
+    };
+    
+    const result = await db.collection('comments').insertOne(comment);
+    comment._id = result.insertedId;
+    
+    res.json(comment);
+  } catch (error) {
+    console.error('Comment creation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get comments for NFT
+app.get('/api/comments/nft/:nftId', async (req, res) => {
+  try {
+    const { nftId } = req.params;
+    const comments = await db.collection('comments')
+      .find({ nftId, parentId: null }) // Only top-level comments
+      .sort({ timestamp: -1 })
+      .toArray();
+    
+    // Get replies for each comment
+    for (let comment of comments) {
+      const replies = await db.collection('comments')
+        .find({ parentId: comment._id.toString() })
+        .sort({ timestamp: 1 })
+        .toArray();
+      comment.replies = replies;
+    }
+    
+    res.json(comments);
+  } catch (error) {
+    console.error('Comments fetch error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Like/unlike comment
+app.post('/api/comments/like', async (req, res) => {
+  try {
+    const { commentId, userId, action } = req.body; // action: 'like' or 'unlike'
+    
+    const update = action === 'like'
+      ? { $inc: { likes: 1 }, $addToSet: { likedBy: userId } }
+      : { $inc: { likes: -1 }, $pull: { likedBy: userId } };
+    
+    await db.collection('comments').updateOne(
+      { _id: new require('mongodb').ObjectId(commentId) },
+      update
+    );
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Comment like error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== COLLABORATIONS ENDPOINTS =====
+
+// Create collaboration
+app.post('/api/collaborations', async (req, res) => {
+  try {
+    const { nftId, collaborators, roles, status } = req.body;
+    
+    if (!nftId || !collaborators || collaborators.length < 2) {
+      return res.status(400).json({ error: 'NFT ID and at least 2 collaborators are required' });
+    }
+    
+    const collaboration = {
+      nftId,
+      collaborators,
+      roles: roles || collaborators.map(() => 'author'),
+      status: status || 'pending', // pending, active, completed, dissolved
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    const result = await db.collection('collaborations').insertOne(collaboration);
+    collaboration._id = result.insertedId;
+    
+    res.json(collaboration);
+  } catch (error) {
+    console.error('Collaboration creation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get collaborations for NFT
+app.get('/api/collaborations/nft/:nftId', async (req, res) => {
+  try {
+    const { nftId } = req.params;
+    const collaborations = await db.collection('collaborations')
+      .find({ nftId })
+      .sort({ createdAt: -1 })
+      .toArray();
+    
+    res.json(collaborations);
+  } catch (error) {
+    console.error('Collaborations fetch error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update collaboration status
+app.put('/api/collaborations/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    const result = await db.collection('collaborations').findOneAndUpdate(
+      { _id: new require('mongodb').ObjectId(id) },
+      { $set: { status, updatedAt: new Date() } },
+      { returnDocument: 'after' }
+    );
+    
+    if (!result.value) {
+      return res.status(404).json({ error: 'Collaboration not found' });
+    }
+    
+    res.json(result.value);
+  } catch (error) {
+    console.error('Collaboration update error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== FORUM ENDPOINTS =====
+
+// Create forum thread
+app.post('/api/forum/threads', async (req, res) => {
+  try {
+    const { title, content, author, tags } = req.body;
+    
+    if (!title || !content || !author) {
+      return res.status(400).json({ error: 'Title, content, and author are required' });
+    }
+    
+    const thread = {
+      title,
+      content,
+      author,
+      tags: tags || [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      replies: 0,
+      views: 0,
+      upvotes: 0,
+      downvotes: 0
+    };
+    
+    const result = await db.collection('forum_threads').insertOne(thread);
+    thread._id = result.insertedId;
+    
+    res.json(thread);
+  } catch (error) {
+    console.error('Thread creation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get forum threads
+app.get('/api/forum/threads', async (req, res) => {
+  try {
+    const { page = 1, limit = 20, tag } = req.query;
+    const skip = (page - 1) * limit;
+    
+    const filter = tag ? { tags: tag } : {};
+    const threads = await db.collection('forum_threads')
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .toArray();
+    
+    const total = await db.collection('forum_threads').countDocuments(filter);
+    
+    res.json({
+      threads,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Threads fetch error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get single thread with replies
+app.get('/api/forum/threads/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const thread = await db.collection('forum_threads').findOne(
+      { _id: new require('mongodb').ObjectId(id) }
+    );
+    
+    if (!thread) {
+      return res.status(404).json({ error: 'Thread not found' });
+    }
+    
+    // Get replies
+    const replies = await db.collection('forum_replies')
+      .find({ threadId: id })
+      .sort({ createdAt: 1 })
+      .toArray();
+    
+    thread.replies = replies;
+    
+    // Increment views
+    await db.collection('forum_threads').updateOne(
+      { _id: new require('mongodb').ObjectId(id) },
+      { $inc: { views: 1 } }
+    );
+    
+    res.json(thread);
+  } catch (error) {
+    console.error('Thread fetch error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add reply to thread
+app.post('/api/forum/threads/:id/replies', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content, author } = req.body;
+    
+    if (!content || !author) {
+      return res.status(400).json({ error: 'Content and author are required' });
+    }
+    
+    const reply = {
+      threadId: id,
+      content,
+      author,
+      createdAt: new Date(),
+      upvotes: 0,
+      downvotes: 0
+    };
+    
+    const result = await db.collection('forum_replies').insertOne(reply);
+    reply._id = result.insertedId;
+    
+    // Increment reply count
+    await db.collection('forum_threads').updateOne(
+      { _id: new require('mongodb').ObjectId(id) },
+      { $inc: { replies: 1 } }
+    );
+    
+    res.json(reply);
+  } catch (error) {
+    console.error('Reply creation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== EXISTING ENDPOINTS =====
+
 // Pinata IPFS upload endpoint
 app.post('/api/upload-ipfs', upload.single('thesisFile'), async (req, res) => {
   try {

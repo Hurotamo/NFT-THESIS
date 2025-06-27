@@ -46,6 +46,11 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
   const [finalCost, setFinalCost] = useState<string>('0');
   const [txHash, setTxHash] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [collaborators, setCollaborators] = useState<{ address: string; share: number }[]>([
+    { address: '', share: 0 },
+  ]);
+  const [royaltyFee, setRoyaltyFee] = useState(500); // default 5%
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const nftService = NFTContractService.getInstance();
@@ -165,6 +170,42 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
     } finally {
       setIsMinting(false);
     }
+  };
+
+  const handleAddressChange = (index: number, value: string) => {
+    const updated = [...collaborators];
+    updated[index].address = value;
+    setCollaborators(updated);
+  };
+
+  const handleShareChange = (index: number, value: number) => {
+    const updated = [...collaborators];
+    updated[index].share = value;
+    setCollaborators(updated);
+  };
+
+  const addCollaborator = () => {
+    setCollaborators([...collaborators, { address: '', share: 0 }]);
+  };
+
+  const removeCollaborator = (index: number) => {
+    setCollaborators(collaborators.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const totalShare = collaborators.reduce((sum, c) => sum + Number(c.share), 0);
+    if (totalShare !== 100) {
+      setError('Total royalty shares must add up to 100%.');
+      return;
+    }
+    if (royaltyFee < 0 || royaltyFee > 1000) {
+      setError('Royalty fee must be between 0 and 1000 (max 10%).');
+      return;
+    }
+    setError('');
+    // Mock submission logic
+    alert('NFT minted with collaborators: ' + JSON.stringify(collaborators) + '\nRoyalty Fee: ' + royaltyFee + ' (basis points)');
   };
 
   if (!walletAddress) {
@@ -416,6 +457,54 @@ const EnhancedMintingSection: React.FC<EnhancedMintingSectionProps> = ({ walletA
             </div>
           </div>
         )}
+
+        <section className="my-8">
+          <h2 className="text-2xl font-bold mb-4">Collaborative NFT Minting</h2>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {collaborators.map((collab, idx) => (
+              <div key={idx} className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  placeholder="Collaborator Address"
+                  value={collab.address}
+                  onChange={e => handleAddressChange(idx, e.target.value)}
+                  className="border rounded px-2 py-1 text-sm"
+                  required
+                />
+                <input
+                  type="number"
+                  placeholder="Royalty %"
+                  value={collab.share}
+                  onChange={e => handleShareChange(idx, Number(e.target.value))}
+                  className="border rounded px-2 py-1 w-20 text-sm"
+                  min={0}
+                  max={100}
+                  required
+                />
+                <span>%</span>
+                {collaborators.length > 1 && (
+                  <button type="button" onClick={() => removeCollaborator(idx)} className="text-red-500 text-xs">Remove</button>
+                )}
+              </div>
+            ))}
+            <button type="button" onClick={addCollaborator} className="bg-gray-200 px-2 py-1 rounded text-xs">Add Collaborator</button>
+            <div className="flex gap-2 items-center mt-2">
+              <input
+                type="number"
+                placeholder="Royalty Fee (basis points)"
+                value={royaltyFee}
+                onChange={e => setRoyaltyFee(Number(e.target.value))}
+                className="border rounded px-2 py-1 w-40 text-sm"
+                min={0}
+                max={1000}
+                required
+              />
+              <span className="text-xs text-gray-500">(e.g., 500 = 5%, max 1000 = 10%)</span>
+            </div>
+            {error && <div className="text-red-500 text-sm">{error}</div>}
+            <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">Mint NFT</button>
+          </form>
+        </section>
       </div>
     </div>
   );

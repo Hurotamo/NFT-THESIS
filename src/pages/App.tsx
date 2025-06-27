@@ -3,14 +3,16 @@ import { Toaster as Sonner } from "@/components/feedback/Sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Web3Provider } from "./contexts/Web3Context";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import AdminDashboard from "./pages/AdminDashboard";
-import { Profile } from "./pages/Profile";
-import { Gallery } from "./pages/Gallery";
-import { Forum } from "./pages/Forum";
-import { Collaboration } from "./pages/Collaboration";
+import { Web3Provider } from "../contexts/Web3Context";
+import Index from "./Index";
+import NotFound from "./NotFound";
+import AdminDashboard from "./AdminDashboard";
+import { Profile } from "./Profile";
+import { Gallery } from "./Gallery";
+import { Forum } from "./Forum";
+import { Collaboration } from "./Collaboration";
+import { SocialFeed } from "./SocialFeed";
+// TODO: Add Mint, Stake, Auction, Governance pages if available
 
 const queryClient = new QueryClient();
 
@@ -23,12 +25,12 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
-            <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/social-feed" element={<SocialFeed />} />
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/forum" element={<Forum />} />
             <Route path="/collaboration" element={<Collaboration />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="/admin" element={<AdminDashboard />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
@@ -37,4 +39,4 @@ const App = () => (
   </QueryClientProvider>
 );
 
-export default App;
+export default App; 

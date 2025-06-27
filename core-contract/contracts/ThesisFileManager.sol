@@ -33,8 +33,8 @@ contract ThesisFileManager is Initializable, OwnableUpgradeable {
     event BatchFilesUploaded(address indexed uploader, uint256 count);
 
     /// @notice Initializes the contract and sets the owner
-    function initialize(address initialOwner) public initializer {
-        __Ownable_init(initialOwner);
+    function initialize(address /* initialOwner */) public initializer {
+        __Ownable_init();
     }
 
     /// @notice Set the NFT contract address

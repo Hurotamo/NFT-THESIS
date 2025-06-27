@@ -393,3 +393,19 @@ export function useNFTService() {
   // Add more methods as needed...
   return { mint, batchMint };
 }
+
+// Mock trending NFTs and creators
+export function getTrendingNFTsAndCreators() {
+  return {
+    nfts: [
+      { id: 1, title: 'Quantum Thesis', creator: 'Alice', image: '/public/placeholder.svg' },
+      { id: 2, title: 'AI Art Manifesto', creator: 'Bob', image: '/public/placeholder.svg' },
+      { id: 3, title: 'Decentralized Dreams', creator: 'Carol', image: '/public/placeholder.svg' },
+    ],
+    creators: [
+      { id: 1, name: 'Alice', avatar: '/public/placeholder.svg' },
+      { id: 2, name: 'Bob', avatar: '/public/placeholder.svg' },
+      { id: 3, name: 'Carol', avatar: '/public/placeholder.svg' },
+    ]
+  };
+}

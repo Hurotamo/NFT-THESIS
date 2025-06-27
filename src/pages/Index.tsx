@@ -2,7 +2,11 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Float, Center } from '@react-three/drei';
+<<<<<<< HEAD
 import { Wallet, FileText, Coins, Gavel, Menu, X, Upload, User, AlertCircle, LogOut, Bell, Settings } from 'lucide-react';
+=======
+import { Wallet, FileText, Coins, Gavel, Menu, X, Upload, User, AlertCircle, LogOut, Bell, BookOpen, Image, Users } from 'lucide-react';
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
 import { Button } from "@/components/buttons/Button";
 import { useToast } from "@/hooks/use-toast";
 import { useWeb3 } from "@/contexts/Web3Context";
@@ -13,6 +17,21 @@ import ThesisPosting from "@/components/core/ThesisPosting";
 import UserProfile from "../components/core/UserProfile";
 import EnhancedMintingSection from "@/components/core/EnhancedMintingSection";
 import Footer from "@/components/layout/Footer";
+<<<<<<< HEAD
+=======
+import EmergencyBanner from '../components/core/EmergencyBanner';
+import AdminStakingPanel from '../components/core/AdminStakingPanel';
+import CountdownTimer from '../components/core/CountdownTimer';
+import { StakingService } from '@/services/stakingService';
+import { GovernanceService } from '@/services/governanceService';
+import GovernanceSection from '@/components/core/GovernanceSection';
+import { Link } from 'react-router-dom';
+import SocialFeed from "./SocialFeed";
+import { Gallery } from "./Gallery";
+import { Forum } from "./Forum";
+import { Collaboration } from "./Collaboration";
+import TrendingSection from '../components/core/TrendingSection';
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
 
 // 3D NFT Card Component
 function FloatingNFT() {
@@ -107,12 +126,19 @@ const Index = () => {
   const { currentAccount, isConnected, isCorrectNetwork, connectWallet, disconnectWallet } = useWeb3();
 
   const navigation = [
-    { name: 'Home', id: 'home', icon: FileText },
-    { name: 'Post Thesis', id: 'post', icon: Upload },
-    { name: 'Mint NFTs', id: 'mint', icon: Coins },
-    { name: 'Stake', id: 'stake', icon: Wallet },
+    { name: 'Post', id: 'post', icon: Upload },
+    { name: 'Mint', id: 'mint', icon: FileText },
+    { name: 'Stake', id: 'stake', icon: Coins },
     { name: 'Auction', id: 'auction', icon: Gavel },
+<<<<<<< HEAD
     { name: 'Profile', id: 'profile', icon: User }
+=======
+    { name: 'Profile', id: 'profile', icon: User },
+    { name: 'Gallery', id: 'gallery', icon: Image },
+    { name: 'Forum', id: 'forum', icon: BookOpen },
+    { name: 'Collaboration', id: 'collaboration', icon: Users },
+    { name: 'Governance', id: 'governance', icon: BookOpen },
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
   ];
 
   const handleWalletConnect = async () => {
@@ -124,18 +150,22 @@ const Index = () => {
     setActiveSection('home');
   };
 
-  const handleThesisPosted = () => {
-    setActiveSection('mint');
+  const handleAcademeNFTPosted = () => {
     toast({
+<<<<<<< HEAD
       title: "Thesis Posted!",
       description: "Your thesis is now available for minting."
+=======
+      title: "Academe NFT Posted!",
+      description: "Your research is now available for minting as an Academe NFT.",
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
     });
   };
 
   const renderActiveSection = () => {
     switch (activeSection) {
       case 'post':
-        return <ThesisPosting walletAddress={currentAccount || ''} onThesisPosted={handleThesisPosted} />;
+        return <ThesisPosting walletAddress={currentAccount || ''} onThesisPosted={handleAcademeNFTPosted} />;
       case 'mint':
         return <EnhancedMintingSection walletAddress={currentAccount || ''} />;
       case 'stake':
@@ -161,6 +191,19 @@ const Index = () => {
             </motion.div>
           </div>
         );
+<<<<<<< HEAD
+=======
+      case 'social':
+        return <SocialFeed />;
+      case 'gallery':
+        return <Gallery />;
+      case 'forum':
+        return <Forum />;
+      case 'collaboration':
+        return <Collaboration />;
+      case 'governance':
+        return <GovernanceSection />;
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
       default:
         return (
           <div className="relative">
@@ -189,8 +232,13 @@ const Index = () => {
                       ACADEME NFT
                     </h1>
                   </div>
+<<<<<<< HEAD
                   <p className="text-xl md:text-3xl text-gray-300 mb-12 max-w-3xl mx-auto leading-relaxed">
                     A revolutionary platform where students post academic research and investors mint them as NFTs.
+=======
+                  <p className="text-xl md:text-2xl text-gray-300 mb-8 max-w-2xl mx-auto">
+                    A revolutionary platform where students post academic research and investors mint them as Academe NFTs.
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
                   </p>
                 </motion.div>
               </div>
@@ -208,8 +256,13 @@ const Index = () => {
                   <h2 className="text-6xl md:text-7xl font-bold text-white mb-8 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
                     Revolutionize Academic Publishing
                   </h2>
+<<<<<<< HEAD
                   <p className="text-2xl text-gray-400 max-w-4xl mx-auto leading-relaxed">
                     Our platform creates a bridge between academic research and blockchain technology, enabling a new ecosystem for thesis monetization and intellectual property protection.
+=======
+                  <p className="text-xl text-gray-400 max-w-3xl mx-auto">
+                    Our platform creates a bridge between academic research and blockchain technology, enabling a new ecosystem for research monetization as Academe NFTs.
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
                   </p>
                 </motion.div>
 
@@ -217,6 +270,7 @@ const Index = () => {
                   {[
                     {
                       icon: Upload,
+<<<<<<< HEAD
                       title: "Students Post Thesis",
                       description: "Upload and share your academic research with metadata preservation on IPFS. Secure, permanent, and immutable storage for your intellectual work with advanced encryption.",
                       gradient: "from-emerald-500 via-green-500 to-teal-500",
@@ -228,13 +282,26 @@ const Index = () => {
                       description: "Browse available theses and mint them as NFTs. Stake 100+ CORE tokens for exclusive 20% discount on all minting fees and early access to premium content.",
                       gradient: "from-blue-500 via-cyan-500 to-indigo-500",
                       bgGradient: "from-blue-500/10 to-cyan-500/5"
+=======
+                      title: "Students Post Academe NFT",
+                      description: "Upload and share your academic research as an Academe NFT with metadata preservation on IPFS."
+                    },
+                    {
+                      icon: Coins,
+                      title: "Investors Mint Academe NFTs",
+                      description: "Browse available research and mint them as Academe NFTs. Stake 100+ CORE for 20% discount."
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
                     },
                     {
                       icon: Gavel,
                       title: "Trade in Auctions",
+<<<<<<< HEAD
                       description: "List thesis NFTs in our escrow-secured auction marketplace. Safe, transparent trading with smart contract protection and automated royalty distribution.",
                       gradient: "from-purple-500 via-violet-500 to-pink-500",
                       bgGradient: "from-purple-500/10 to-violet-500/5"
+=======
+                      description: "List Academe NFTs in our escrow-secured auction marketplace for trading."
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
                     }
                   ].map((feature, index) => (
                     <motion.div
@@ -321,6 +388,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-black text-white">
+<<<<<<< HEAD
       {/* Enhanced Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-2xl bg-black/80 border-b border-white/10 shadow-2xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -333,20 +401,47 @@ const Index = () => {
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex flex-1 justify-center space-x-2">
+=======
+      {/* Navigation */}
+      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-lg bg-black/60 border-b border-white/10 shadow-lg">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
+          <div className="flex justify-between items-center py-2">
+            <div className="flex items-center">
+              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent tracking-tight font-sans" style={{ fontFamily: 'Inter, sans-serif' }}>
+                ACADEMENFT
+              </h1>
+            </div>
+            {/* Desktop Navigation - Icons only, animated underline, glassmorphism, glow/scale on hover */}
+            <div className="hidden md:flex flex-1 justify-center space-x-2 relative">
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
               {navigation.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => setActiveSection(item.id)}
+<<<<<<< HEAD
                   className={`flex items-center space-x-2 px-6 py-3 rounded-xl transition-all duration-300 font-medium ${
                     activeSection === item.id
                       ? 'bg-gradient-to-r from-blue-600/40 to-purple-600/40 text-blue-300 border border-blue-500/40 shadow-lg shadow-blue-500/20 backdrop-blur-lg'
                       : 'text-gray-300 hover:text-white hover:bg-white/10 hover:backdrop-blur-lg'
+=======
+                  className={`group flex flex-col items-center justify-center px-2 py-1 rounded-md transition-all duration-200 text-sm relative ${
+                    activeSection === item.id
+                      ? 'text-blue-400'
+                      : 'text-gray-300 hover:text-white'
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
                   }`}
+                  title={item.name}
+                  style={{ position: 'relative' }}
                 >
-                  <item.icon className="w-5 h-5" />
-                  <span>{item.name}</span>
+                  <item.icon className="w-6 h-6 mb-0.5 group-hover:scale-110 group-hover:drop-shadow-[0_0_8px_rgba(99,102,241,0.7)] transition-transform duration-200" />
+                  {/* Animated underline */}
+                  {activeSection === item.id && (
+                    <span className="absolute left-1/2 -translate-x-1/2 bottom-0 w-6 h-1 rounded-full bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse" />
+                  )}
+                  <span className="sr-only md:not-sr-only md:hidden group-hover:block absolute bg-black text-white text-xs rounded px-2 py-1 mt-8 z-50">{item.name}</span>
                 </button>
               ))}
+<<<<<<< HEAD
             </div>
 
             {/* Enhanced Notification Bell + Wallet Section */}
@@ -354,24 +449,50 @@ const Index = () => {
               <button className="relative p-3 rounded-full hover:bg-white/10 transition-all duration-200 group" aria-label="Notifications">
                 <Bell className="w-6 h-6 text-white group-hover:text-blue-300 transition-colors" />
                 <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+=======
+              {/* Admin Link */}
+              {isConnected && isAdmin && (
+                <Link
+                  to="/admin"
+                  className="flex flex-col items-center justify-center px-2 py-1 rounded-md transition-all duration-200 text-purple-400 hover:text-white hover:bg-purple-700/20 border border-purple-400/30"
+                  title="Admin"
+                >
+                  <Gavel className="w-6 h-6 mb-0.5" />
+                  <span className="sr-only md:not-sr-only md:hidden group-hover:block absolute bg-black text-white text-xs rounded px-2 py-1 mt-8 z-50">Admin</span>
+                </Link>
+              )}
+            </div>
+            {/* Notification Bell + Wallet/Connect/Profile Section */}
+            <div className="hidden md:flex items-center space-x-2">
+              <button className="relative p-2 rounded-full hover:bg-white/10 transition-colors" aria-label="Notifications">
+                <Bell className="w-5 h-5 text-white" />
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
               </button>
               {!isConnected ? (
                 <WalletConnect />
               ) : (
                 <button
                   onClick={handleWalletLogout}
+<<<<<<< HEAD
                   className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-600/20 to-emerald-600/20 border border-green-400/30 text-green-300 rounded-xl hover:from-green-600/30 hover:to-emerald-600/30 transition-all duration-200 group backdrop-blur-lg shadow-lg"
+=======
+                  className="flex items-center space-x-2 px-3 py-1 bg-green-600/20 border border-green-400/30 text-green-400 rounded-lg hover:bg-green-600/30 transition-all duration-200 group text-xs"
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
                 >
                   <Wallet className="w-4 h-4" />
-                  <span className="text-sm font-mono">
+                  <span className="font-mono">
                     {currentAccount?.slice(0, 6)}...{currentAccount?.slice(-4)}
                   </span>
                   <LogOut className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
               )}
             </div>
+<<<<<<< HEAD
 
             {/* Enhanced Mobile Menu */}
+=======
+            {/* Mobile Menu Button */}
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
             <div className="md:hidden flex items-center space-x-2">
               {isConnected && currentAccount && (
                 <button
@@ -392,16 +513,26 @@ const Index = () => {
             </div>
           </div>
         </div>
+<<<<<<< HEAD
 
         {/* Enhanced Mobile Navigation */}
+=======
+        {/* Mobile Navigation - show icons and labels in grid */}
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
         {isMenuOpen && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
+<<<<<<< HEAD
             className="md:hidden bg-black/95 backdrop-blur-xl border-t border-white/10"
           >
             <div className="px-4 py-6 space-y-2">
+=======
+            className="md:hidden bg-black/90 backdrop-blur-lg"
+          >
+            <div className="px-2 py-2 grid grid-cols-2 gap-2">
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
               {navigation.map((item) => (
                 <button
                   key={item.id}
@@ -409,26 +540,48 @@ const Index = () => {
                     setActiveSection(item.id);
                     setIsMenuOpen(false);
                   }}
+<<<<<<< HEAD
                   className={`flex items-center space-x-3 w-full px-4 py-4 rounded-xl transition-all duration-200 font-medium ${
+=======
+                  className={`flex flex-col items-center justify-center px-2 py-2 rounded-lg transition-all duration-200 text-xs ${
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
                     activeSection === item.id
                       ? 'bg-gradient-to-r from-blue-600/30 to-purple-600/30 text-blue-300 border border-blue-500/30'
                       : 'text-gray-300 hover:text-white hover:bg-white/10'
                   }`}
                 >
-                  <item.icon className="w-5 h-5" />
+                  <item.icon className="w-5 h-5 mb-1" />
                   <span>{item.name}</span>
                 </button>
               ))}
+<<<<<<< HEAD
+=======
+              {/* Admin Link (Mobile) */}
+              {isConnected && isAdmin && (
+                <a
+                  href="/admin"
+                  className="flex flex-col items-center justify-center px-2 py-2 rounded-lg text-purple-400 hover:bg-purple-700/10 transition-all duration-200 border border-purple-400/30 text-xs"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <Gavel className="w-5 h-5 mb-1" />
+                  <span>Admin</span>
+                </a>
+              )}
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
               {isConnected && (
                 <button
                   onClick={() => {
                     handleWalletLogout();
                     setIsMenuOpen(false);
                   }}
+<<<<<<< HEAD
                   className="flex items-center space-x-3 w-full px-4 py-4 rounded-xl text-red-400 hover:bg-red-600/10 transition-all duration-200 font-medium border border-red-500/20"
+=======
+                  className="flex flex-col items-center justify-center px-2 py-2 rounded-lg text-red-400 hover:bg-red-600/10 transition-all duration-200 text-xs"
+>>>>>>> 3879aaa (UI/UX: Enhance Trending NFTs, My Galleries, Community Forum, and Collaborations with modern professional design, gradients, and glassmorphism)
                 >
-                  <LogOut className="w-5 h-5" />
-                  <span>Logout Wallet</span>
+                  <LogOut className="w-5 h-5 mb-1" />
+                  <span>Logout</span>
                 </button>
               )}
             </div>
@@ -437,8 +590,11 @@ const Index = () => {
       </nav>
 
       {/* Main Content */}
-      <main className="pt-20">
-        {renderActiveSection()}
+      <main className="pt-32 font-sans" style={{ fontFamily: 'Inter, sans-serif' }}>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+          <TrendingSection />
+          {renderActiveSection()}
+        </motion.div>
       </main>
 
       {/* Footer */}

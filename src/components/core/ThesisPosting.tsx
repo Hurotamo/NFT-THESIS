@@ -217,10 +217,10 @@ const ThesisPosting: React.FC<ThesisPostingProps> = ({ walletAddress, onThesisPo
           className="text-center mb-8"
         >
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-            Post Your Thesis
+            Post Your Academe NFT
           </h1>
           <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-            Upload your academic research to IPFS and make it available for minting as NFTs
+            Upload your academic research to IPFS and make it available for minting as an Academe NFT
           </p>
         </motion.div>
 

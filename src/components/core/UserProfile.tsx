@@ -7,6 +7,8 @@ import { MintedNFT, NFTContractService } from '@/services/nftContractService';
 import { useWeb3 } from "@/contexts/Web3Context";
 import { useToast } from "@/hooks/use-toast";
 import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
+import { SocialFeed as SocialFeedComponent } from './SocialFeed';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface UserProfileProps {
   walletAddress: string;
@@ -19,6 +21,9 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const { getTotalStaked } = useContracts();
+
+  const mockReferralLink = 'https://nft-thesis.app/referral/abc123';
+  const mockReferralStats = { invites: 5, rewards: 2 };
 
   // Poll for real-time profile data
   useEffect(() => {
@@ -71,36 +76,45 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
 
   return (
     <div className="min-h-screen py-20 px-4">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-3xl mx-auto">
+        {/* Gradient Banner */}
+        <div className="w-full h-32 md:h-40 rounded-2xl mb-[-48px] md:mb-[-64px] bg-gradient-to-r from-blue-500/80 via-purple-500/80 to-blue-700/80 shadow-lg" />
+        {/* Profile Card */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
+          className="relative z-10 bg-black/70 backdrop-blur-lg rounded-2xl p-8 border border-white/10 shadow-xl text-center mb-8 mt-[-48px] md:mt-[-64px]"
         >
-          <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+          {/* Avatar */}
+          <div className="flex justify-center mb-4">
+            <Avatar className="w-24 h-24 border-4 border-gradient-to-r from-blue-400 to-purple-400 shadow-lg">
+              <AvatarImage src={''} alt="User avatar" />
+              <AvatarFallback>{walletAddress.slice(2, 4).toUpperCase()}</AvatarFallback>
+            </Avatar>
+          </div>
+          <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-2 font-sans" style={{ fontFamily: 'Inter, sans-serif' }}>
             User Profile
           </h2>
-          <div className="flex items-center justify-center gap-4 text-xl text-gray-400">
-            <span>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</span>
+          <div className="flex items-center justify-center gap-4 text-lg text-gray-400 mb-2">
+            <span className="font-mono">{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</span>
             <div className="flex items-center gap-2 text-green-400">
               <Activity className="w-4 h-4" />
               <span className="text-sm">Live</span>
             </div>
           </div>
-          <p className="text-sm text-gray-500 mt-2">
+          <p className="text-xs text-gray-500 mt-1">
             Last updated: {lastUpdate.toLocaleTimeString()}
           </p>
         </motion.div>
-
         {/* Stats Banner */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="backdrop-blur-md bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-xl p-6 border border-white/10 mb-8"
+          className="backdrop-blur-md bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-xl p-6 border border-white/10 mb-8 shadow-lg"
         >
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div>
-              <p className="text-2xl font-bold text-white">{totalThesisPosted}</p>
+              <p className="text-2xl font-bold text-blue-400">{totalThesisPosted}</p>
               <p className="text-sm text-gray-400">Total Theses</p>
             </div>
             <div>
@@ -117,7 +131,6 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
             </div>
           </div>
         </motion.div>
-
         {/* Tab Selector */}
         <div className="flex justify-center mb-8">
           <div className="backdrop-blur-md bg-white/5 rounded-lg p-1 border border-white/10">
@@ -143,7 +156,27 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
             </button>
           </div>
         </div>
-
+        {/* Add this section near the top of the profile */}
+        <div className="mb-6 p-4 bg-blue-50 rounded">
+          <h3 className="font-semibold mb-2">Referral Program</h3>
+          <div className="flex items-center gap-2 mb-2">
+            <label htmlFor="referral-link" className="sr-only">Referral Link</label>
+            <input
+              id="referral-link"
+              type="text"
+              value={mockReferralLink}
+              readOnly
+              className="border rounded px-2 py-1 w-full max-w-xs text-sm"
+            />
+            <button
+              onClick={() => navigator.clipboard.writeText(mockReferralLink)}
+              className="bg-blue-600 text-white px-3 py-1 rounded text-sm"
+            >
+              Copy
+            </button>
+          </div>
+          <div className="text-xs text-gray-600">Invites: {mockReferralStats.invites} | Rewards: {mockReferralStats.rewards}</div>
+        </div>
         {/* Wrap conditional rendering in a fragment to ensure valid JSX */}
         <>
           {activeTab === 'student' ? (
@@ -391,6 +424,18 @@ const UserProfile: React.FC<UserProfileProps> = ({ walletAddress }) => {
             </motion.div>
           )}
         </>
+        {/* User Activity Feed as Timeline */}
+        <div className="mt-12">
+          <h3 className="text-2xl font-bold text-white mb-4 font-sans" style={{ fontFamily: 'Inter, sans-serif' }}>
+            Recent Activity
+          </h3>
+          <div className="relative">
+            <div className="absolute left-6 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-400/60 via-purple-400/60 to-blue-400/0 rounded-full" />
+            <div className="pl-16 space-y-6">
+              <SocialFeedComponent currentUser={walletAddress} timelineMode />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

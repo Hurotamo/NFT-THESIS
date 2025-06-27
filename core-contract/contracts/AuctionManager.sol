@@ -25,9 +25,9 @@ contract AuctionManager is Initializable, OwnableUpgradeable, IAuctionManager {
 
     /// @notice Initializes the contract and sets the NFT contract and owner
     /// @param _thesisNFT The address of the NFT contract
-    /// @param initialOwner The address of the contract owner
-    function initialize(address _thesisNFT, address initialOwner) public initializer {
-        __Ownable_init(initialOwner);
+    /// @param /* initialOwner */ The address of the contract owner
+    function initialize(address _thesisNFT, address /* initialOwner */) public initializer {
+        __Ownable_init();
         thesisNFT = _thesisNFT;
     }
 
